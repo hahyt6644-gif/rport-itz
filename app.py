@@ -419,23 +419,34 @@ async def bot_skip_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception: pass
 
 def init_bot_engine(token):
+def init_bot_engine(token):
     global BOT_APP, BOT_LOOP, IS_BOT_RUNNING
     try:
+        # 1. Create a clean background event loop
         BOT_LOOP = asyncio.new_event_loop()
         asyncio.set_event_loop(BOT_LOOP)
+        
+        # 2. Build the Application normally
         BOT_APP = ApplicationBuilder().token(token).build()
         BOT_APP.add_handler(CommandHandler("start", bot_start_cmd))
         BOT_APP.add_handler(CommandHandler("cancel", bot_cancel_cmd))
         BOT_APP.add_handler(MessageHandler(filters.Document.ALL, bot_receive_file))
         BOT_APP.add_handler(CallbackQueryHandler(bot_skip_cb))
+        
+        # 3. CRITICAL: Initialize and Start but DO NOT use run_polling()
         BOT_LOOP.run_until_complete(BOT_APP.initialize())
         BOT_LOOP.run_until_complete(BOT_APP.start())
+        
         IS_BOT_RUNNING = True
-        emit_log("🤖 ENGINE READY.")
+        emit_log("🤖 ENGINE READY (WEBHOOK MODE ACTIVE).")
+        
+        # 4. Keep the loop alive to process async events from the webhook
         BOT_LOOP.run_forever()
+        
     except Exception as e:
-        emit_log(f"⚠️ BOT ERR: {e}")
+        emit_log(f"⚠️ BOT ENGINE ERROR: {e}")
         IS_BOT_RUNNING = False
+
 
 # ==========================================
 # FLASK HTTP ROUTES (NO PASSWORD)
