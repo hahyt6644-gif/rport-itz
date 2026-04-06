@@ -1,6 +1,6 @@
 import os, glob, re, json, random, asyncio, threading, time, shutil, socket
-from zipfile import ZipFile
 import requests
+from zipfile import ZipFile
 from flask import Flask, render_template, request, jsonify, Response, session, send_file
 from telethon import TelegramClient, functions, types, events
 from telethon.errors import AuthKeyUnregisteredError, UserDeactivatedBanError, SessionExpiredError, SessionRevokedError
@@ -10,11 +10,19 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-app = Flask(__name__)
-app.secret_key = 'itz_dev_super_secret_key'
+# --- ABSOLUTE PATHS FIX FOR RENDER ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
+CREDS_FILE = os.path.join(BASE_DIR, 'credentials.json')
+PROXIES_FILE = os.path.join(BASE_DIR, 'proxies.txt')
+SESSIONS_DIR = os.path.join(BASE_DIR, 'sessions')
+EXPIRED_DIR = os.path.join(BASE_DIR, 'expired_sessions')
 
-os.makedirs('sessions', exist_ok=True)
-os.makedirs('expired_sessions', exist_ok=True)
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+os.makedirs(EXPIRED_DIR, exist_ok=True)
+
+app = Flask(__name__)
+app.secret_key = 'itz_dev_super_secret_key_2026'
 
 # --- GLOBAL VARIABLES ---
 STOP_SIGNAL = threading.Event()
@@ -30,21 +38,27 @@ IS_BOT_RUNNING = False
 events_store = {}
 
 def load_config():
-    if not os.path.exists('config.json'):
-        conf = {"api_id": "23269382", "api_hash": "your_hash", "admin_password": "admin", "bot_token": ""}
-        with open('config.json', 'w') as f: json.dump(conf, f)
+    if not os.path.exists(CONFIG_FILE):
+        conf = {
+            "api_id": "23269382", "api_hash": "your_hash", 
+            "admin_password": "admin", "bot_token": "", 
+            "min_delay": 3, "max_delay": 8, "bot_w": 60
+        }
+        with open(CONFIG_FILE, 'w') as f: json.dump(conf, f, indent=4)
         return conf
-    return json.load(open('config.json'))
+    with open(CONFIG_FILE, 'r') as f: return json.load(f)
 
 def save_config(conf):
-    with open('config.json', 'w') as f: json.dump(conf, f)
+    with open(CONFIG_FILE, 'w') as f: json.dump(conf, f, indent=4)
 
 def get_balanced_creds(index=0):
-    if os.path.exists('credentials.json'):
-        creds = json.load(open('credentials.json'))
-        if creds and isinstance(creds, list):
-            idx = index % len(creds)
-            return creds[idx]['api_id'], creds[idx]['api_hash']
+    if os.path.exists(CREDS_FILE):
+        try:
+            with open(CREDS_FILE, 'r') as f: creds = json.load(f)
+            if creds and isinstance(creds, list):
+                idx = index % len(creds)
+                return creds[idx]['api_id'], creds[idx]['api_hash']
+        except: pass
     conf = load_config()
     return conf.get('api_id', ''), conf.get('api_hash', '')
 
@@ -55,11 +69,11 @@ def emit_log(msg):
     if len(LOG_HISTORY) > 150: LOG_HISTORY.pop(0)
 
 def get_proxy():
-    if not os.path.exists('proxies.txt'): return None, None
-    with open('proxies.txt', 'r') as f: proxies = [l.strip() for l in f if l.strip()]
-    if not proxies: return None, None
-    p = random.choice(proxies)
+    if not os.path.exists(PROXIES_FILE): return None, None
     try:
+        with open(PROXIES_FILE, 'r') as f: proxies = [l.strip() for l in f if l.strip()]
+        if not proxies: return None, None
+        p = random.choice(proxies)
         clean = re.sub(r'(?i)^socks5h?://', '', p)
         parts = clean.split(':')
         if len(parts) >= 4:
@@ -69,7 +83,7 @@ def get_proxy():
             }
             return proxy_dict, p
     except: pass
-    return None, p
+    return None, None
 
 def get_random_device():
     devices = [("Samsung Galaxy S24 Ultra", "Android 14"), ("Xiaomi 14 Pro", "Android 14"), ("OnePlus 12", "Android 14")]
@@ -101,7 +115,7 @@ async def delayed_leave(s_path, api_id, api_hash, target, delay_seconds, dev_met
     finally: await client.disconnect()
 
 async def execute_task(data):
-    all_sessions = glob.glob('sessions/*.session')
+    all_sessions = glob.glob(os.path.join(SESSIONS_DIR, '*.session'))
     acc_limit = int(data.get('acc_limit', len(all_sessions)))
     sessions = all_sessions[:acc_limit]
     
@@ -123,7 +137,6 @@ async def execute_task(data):
         
         client = None
         connected = False
-        data_kb = random.uniform(35.0, 48.0)
         dev_model, sys_ver, app_ver = get_random_device()
 
         for attempt in range(2):
@@ -156,15 +169,14 @@ async def execute_task(data):
             if not await client.is_user_authorized():
                 emit_log(f"❌ {basename}: SESSION DEAD. MOVED.")
                 await client.disconnect()
-                shutil.move(s_path, os.path.join('expired_sessions', basename))
+                shutil.move(s_path, os.path.join(EXPIRED_DIR, basename))
                 continue
 
             emit_log(f"📱 {basename} SPOOFING DEVICE: {dev_model}")
             target_input = data.get('target', '').strip()
 
             if action == 'health':
-                me = await client.get_me()
-                data_kb += random.uniform(5.0, 12.0)
+                await client.get_me()
                 emit_log(f"✅ {basename}: ONLINE (API:{api_id})")
 
             elif action == 'refer':
@@ -172,7 +184,6 @@ async def execute_task(data):
                 param = target_input.split('start=')[-1] if 'start=' in target_input else ""
                 ent = await client.get_entity(bot_u)
                 await client(functions.messages.StartBotRequest(bot=ent, peer=ent, start_param=param))
-                data_kb += random.uniform(18.0, 26.0)
                 emit_log(f"🔗 {basename}: REF SUCCESS.")
 
             elif action == 'report':
@@ -194,7 +205,6 @@ async def execute_task(data):
                             await client(functions.channels.JoinChannelRequest(clean_target))
                             ent = await client.get_entity(clean_target)
                             emit_log(f"📥 {basename}: SUCCESSFULLY JOINED PUBLIC TARGET.")
-                        data_kb += random.uniform(25.0, 35.0)
                         await asyncio.sleep(2)
                     except Exception as e:
                         if 'UserAlreadyParticipant' in type(e).__name__: emit_log(f"📥 {basename}: ALREADY IN CHAT.")
@@ -214,7 +224,6 @@ async def execute_task(data):
 
                 if data.get('report_mode') == 'bot':
                     await client.send_message(ent, "/start")
-                    data_kb += random.uniform(15.0, 20.0)
                     emit_log(f"🤖 {basename}: BOT ON. WAIT {bot_w}s...")
                     for _ in range(bot_w):
                         if STOP_SIGNAL.is_set(): raise Exception("STOPPED")
@@ -227,11 +236,9 @@ async def execute_task(data):
                         except TypeError:
                             res = await client(functions.messages.ReportRequest(peer=ent, id=ids, option=b'', message="Violations"))
                             if hasattr(res, 'options') and res.options: await client(functions.messages.ReportRequest(peer=ent, id=ids, option=res.options[0].option, message="Violations"))
-                        data_kb += len(ids) * random.uniform(2.5, 4.0)
                         emit_log(f"✅ {basename}: {len(ids)} POSTS REPORTED.")
                 
                 await client(functions.account.ReportPeerRequest(peer=ent, reason=reason, message="Violations"))
-                data_kb += random.uniform(12.0, 18.0)
                 emit_log(f"✅ {basename}: PEER REPORTED.")
 
                 if data.get('leave_after'):
@@ -242,19 +249,16 @@ async def execute_task(data):
             elif action == 'message':
                 peer = int(target_input) if target_input.isdigit() else target_input
                 await client.send_message(peer, data.get('message_text', ''))
-                data_kb += random.uniform(10.0, 15.0)
                 emit_log(f"✅ {basename}: MSG SENT.")
 
             elif action == 'join':
                 if "t.me/+" in target_input: await client(functions.messages.ImportChatInviteRequest(target_input.split('+')[-1]))
                 else: await client(functions.channels.JoinChannelRequest(target_input.replace('https://t.me/','').replace('@','')))
-                data_kb += random.uniform(25.0, 35.0)
                 emit_log(f"✅ {basename}: JOINED.")
 
             elif action == 'leave':
                 if "t.me/+" not in target_input:
                     await client(functions.channels.LeaveChannelRequest(target_input.replace('https://t.me/','').replace('@','')))
-                    data_kb += random.uniform(10.0, 15.0)
                     emit_log(f"✅ {basename}: LEFT.")
 
         except Exception as e:
@@ -273,7 +277,7 @@ def thread_run(data):
     finally: IS_RUNNING = False
 
 # ==========================================
-# OTP BOT LOGIC 
+# OTP BOT LOGIC (WEBHOOK)
 # ==========================================
 def ensure_bucket(user_id: int):
     if user_id not in events_store: events_store[user_id] = {}
@@ -300,14 +304,14 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = update.message.document
     fname = file.file_name.lower()
     f = await context.bot.get_file(file.file_id)
-    local_path = f"{user_id}_{fname}"
+    local_path = os.path.join(BASE_DIR, f"{user_id}_{fname}")
     await f.download_to_drive(custom_path=local_path)
     await update.message.reply_text("♻️ Processing...\n🙏 Please wait.")
 
     sessions = []
     if fname.endswith(".zip"):
         try:
-            out_dir = f"{user_id}_sessions"
+            out_dir = os.path.join(BASE_DIR, f"{user_id}_sessions")
             os.makedirs(out_dir, exist_ok=True)
             with ZipFile(local_path, "r") as z:
                 z.extractall(out_dir)
@@ -410,7 +414,7 @@ def run_bot_thread(token):
         BOT_LOOP = asyncio.new_event_loop()
         asyncio.set_event_loop(BOT_LOOP)
         
-        # .updater(None) disables polling and fixes the Render crash
+        # .updater(None) entirely strips polling from the background. Prevents crashes on Render!
         BOT_APP = ApplicationBuilder().token(token).updater(None).build()
         BOT_APP.add_handler(CommandHandler("start", bot_start_cmd))
         BOT_APP.add_handler(CommandHandler("cancel", bot_cancel_cmd))
@@ -436,7 +440,6 @@ async def shutdown_bot():
         IS_BOT_RUNNING = False
         emit_log("🤖 OTP BOT ENGINE STOPPED.")
 
-
 # ==========================================
 # FLASK ROUTES
 # ==========================================
@@ -444,15 +447,18 @@ async def shutdown_bot():
 def index():
     if not session.get('logged_in'): return render_template('index.html', logged_in=False)
     stats = {
-        "active": len(glob.glob('sessions/*.session')), "expired": len(glob.glob('expired_sessions/*.session')),
+        "active": len(glob.glob(os.path.join(SESSIONS_DIR, '*.session'))), 
+        "expired": len(glob.glob(os.path.join(EXPIRED_DIR, '*.session'))),
         "p_active": PROXY_STATUS["active"], "p_dead": PROXY_STATUS["dead"]
     }
-    proxies = open('proxies.txt').read() if os.path.exists('proxies.txt') else ""
-    return render_template('index.html', logged_in=True, stats=stats, proxies=proxies, bot_running=IS_BOT_RUNNING, bot_token=load_config().get('bot_token',''))
+    proxies = open(PROXIES_FILE).read() if os.path.exists(PROXIES_FILE) else ""
+    conf = load_config()
+    return render_template('index.html', logged_in=True, stats=stats, proxies=proxies, bot_running=IS_BOT_RUNNING, bot_token=conf.get('bot_token',''), conf=conf)
 
 @app.route('/login', methods=['POST'])
 def login():
-    if request.json.get('password') == load_config().get('admin_password', 'admin'):
+    conf = load_config()
+    if request.json.get('password') == conf.get('admin_password', 'admin'):
         session['logged_in'] = True
         return jsonify({"status": "ok"})
     return jsonify({"status": "fail"}), 401
@@ -487,28 +493,31 @@ def clear_logs():
 def upload_sessions():
     if not session.get('logged_in'): return "", 401
     for f in request.files.getlist('files'):
-        if f.filename.endswith('.session'): f.save(os.path.join('sessions', f.filename))
+        if f.filename.endswith('.session'): f.save(os.path.join(SESSIONS_DIR, f.filename))
     return jsonify({"status": "ok"})
 
 @app.route('/download_sessions')
 def download_sessions():
     if not session.get('logged_in'): return "", 401
-    shutil.make_archive('all_sessions', 'zip', 'sessions')
-    return send_file('all_sessions.zip', as_attachment=True)
+    zip_path = os.path.join(BASE_DIR, 'all_sessions')
+    shutil.make_archive(zip_path, 'zip', SESSIONS_DIR)
+    return send_file(f"{zip_path}.zip", as_attachment=True)
 
 @app.route('/save_proxies', methods=['POST'])
 def save_proxies():
     if not session.get('logged_in'): return "", 401
-    with open('proxies.txt', 'w') as f: f.write(request.json.get('proxies', ''))
+    with open(PROXIES_FILE, 'w') as f: f.write(request.json.get('proxies', ''))
     return jsonify({"status": "ok"})
 
 @app.route('/save_creds', methods=['POST'])
 def save_creds():
     if not session.get('logged_in'): return "", 401
     d = request.json
-    creds = json.load(open('credentials.json')) if os.path.exists('credentials.json') else []
+    try:
+        with open(CREDS_FILE, 'r') as f: creds = json.load(f)
+    except: creds = []
     creds.append({"api_id": d['api_id'], "api_hash": d['api_hash']})
-    with open('credentials.json', 'w') as f: json.dump(creds, f)
+    with open(CREDS_FILE, 'w') as f: json.dump(creds, f)
     return jsonify({"status": "ok"})
 
 @app.route('/check_proxies', methods=['POST'])
@@ -516,40 +525,56 @@ def check_proxies():
     if not session.get('logged_in'): return "", 401
     def run_check():
         global PROXY_STATUS
-        if not os.path.exists('proxies.txt'): return
-        with open('proxies.txt', 'r') as f: proxies = [l.strip() for l in f if l.strip()]
+        if not os.path.exists(PROXIES_FILE): return
+        with open(PROXIES_FILE, 'r') as f: proxies = [l.strip() for l in f if l.strip()]
         active, dead = 0, 0
-        emit_log(f"🔍 Testing {len(proxies)} proxies...")
         loop = asyncio.new_event_loop()
         for p in proxies:
             if loop.run_until_complete(validate_proxy(p)): active += 1
             else: dead += 1
         PROXY_STATUS = {"active": active, "dead": dead, "last_check": datetime.now().strftime('%H:%M')}
-        emit_log(f"📊 Proxy Check Finished: {active} Working, {dead} Dead.")
+        emit_log(f"📊 PROXY AUDIT: {active} OK, {dead} DEAD.")
     threading.Thread(target=run_check).start()
     return jsonify({"status": "ok"})
 
-# --- OTP BOT API ROUTES ---
+@app.route('/save_settings', methods=['POST'])
+def save_settings():
+    if not session.get('logged_in'): return "", 401
+    conf = load_config()
+    d = request.json
+    conf['min_delay'] = int(d.get('min_d', 3))
+    conf['max_delay'] = int(d.get('max_d', 8))
+    conf['bot_w'] = int(d.get('bot_w', 60))
+    save_config(conf)
+    return jsonify({"status": "ok"})
+
+@app.route('/api/bot/save', methods=['POST'])
+def save_bot_token():
+    if not session.get('logged_in'): return "", 401
+    conf = load_config()
+    conf['bot_token'] = request.json.get('token', '')
+    save_config(conf)
+    return jsonify({"status": "ok"})
+
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
     global BOT_THREAD
     if not session.get('logged_in'): return "", 401
     if IS_BOT_RUNNING: return jsonify({"status": "already_running"})
+    
     token = load_config().get('bot_token', '')
     if not token: return jsonify({"status": "no_token"})
     
-    # 1. Start the bot engine in the background
+    # Start bot thread
     BOT_THREAD = threading.Thread(target=run_bot_thread, args=(token,))
     BOT_THREAD.daemon = True
     BOT_THREAD.start()
 
-    # 2. Automatically Set Webhook via Telegram API
+    # Apply Webhook Automatically
     webhook_url = request.url_root.replace('http://', 'https://') + 'webhook'
     r = requests.get(f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}")
-    if r.status_code == 200:
-        emit_log(f"🌐 WEBHOOK SET TO: {webhook_url}")
-    else:
-        emit_log(f"⚠️ WEBHOOK FAILED: {r.text}")
+    if r.status_code == 200: emit_log(f"🌐 WEBHOOK SET TO: {webhook_url}")
+    else: emit_log(f"⚠️ WEBHOOK FAILED: {r.text}")
 
     return jsonify({"status": "ok"})
 
@@ -559,12 +584,11 @@ def stop_bot():
     if not session.get('logged_in'): return "", 401
     token = load_config().get('bot_token', '')
 
-    # 1. Automatically Delete Webhook
+    # Remove Webhook Automatically
     if token:
         requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
         emit_log("🗑️ WEBHOOK DELETED FROM TELEGRAM.")
 
-    # 2. Stop the bot engine
     if IS_BOT_RUNNING and BOT_LOOP:
         asyncio.run_coroutine_threadsafe(shutdown_bot(), BOT_LOOP)
         
@@ -572,13 +596,11 @@ def stop_bot():
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
-    # 3. Receive updates from Telegram and push to the bot engine
     if IS_BOT_RUNNING and BOT_APP and BOT_LOOP:
         data = request.get_json(force=True)
         update = Update.de_json(data, BOT_APP.bot)
         asyncio.run_coroutine_threadsafe(BOT_APP.process_update(update), BOT_LOOP)
     return "OK", 200
-
 
 @app.route('/logs')
 def stream_logs():
