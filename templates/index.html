@@ -186,7 +186,7 @@
             </div>
         </div>
 
-                <div class="tab-pane fade" id="tab-set">
+        <div class="tab-pane fade" id="tab-set">
             <div class="cyber-card">
                 <h6 style="color: var(--cyber); text-align: center; font-weight: bold;">OPERATION TIMING PARAMETERS</h6>
                 
@@ -197,8 +197,6 @@
                 </div>
                 <button class="btn btn-outline-info w-100 mb-4" onclick="saveTiming(this)">SAVE TIMING PARAMETERS</button>
                 
-                <hr style="border-color: #30363d; margin: 20px 0;">
-
                 <hr style="border-color: #30363d; margin: 20px 0;">
                 
                 <label>Upload .Session Files</label>
@@ -321,8 +319,6 @@
     
     async function logout() { await fetch('/logout', {method: 'POST'}); location.reload(); }
 
-    async function logout() { await fetch('/logout', {method: 'POST'}); location.reload(); }
-
     async function checkProxies(btn) {
         btn.innerText = "CHECKING...";
         await fetch('/check_proxies', {method: 'POST'});
@@ -366,7 +362,6 @@
             setTimeout(() => btn.innerText = originalText, 1500); 
         }, 500);
     }
-    
 
     async function stopBot(btn) {
         btn.innerText = "STOPPING...";
