@@ -9,7 +9,7 @@
         :root { --cyber: #00d4ff; --bg: #0d1117; --card: #161b22; --text: #e6edf3; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
         .cyber-card { background: var(--card); border: 1px solid #30363d; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .nav-link { color: #8b949e; font-weight: bold; font-size: 0.75rem; border: none !important; text-transform: uppercase; padding: 12px 5px; transition: 0.3s; }
+        .nav-link { color: #8b949e; font-weight: bold; font-size: 0.7rem; border: none !important; text-transform: uppercase; padding: 12px 3px; transition: 0.3s; }
         .nav-link.active { background: var(--cyber) !important; color: #0d1117 !important; border-radius: 8px; box-shadow: 0 0 10px var(--cyber); }
         .terminal { background: #010409; color: var(--cyber); height: 250px; overflow-y: auto; padding: 12px; border-radius: 10px; font-size: 0.75rem; border: 1px solid #30363d; font-family: 'Courier New', monospace; scroll-behavior: smooth; }
         .form-control, .form-select { background: #0d1117 !important; color: var(--cyber) !important; border: 1px solid #30363d !important; font-size: 0.9rem; padding: 10px; border-radius: 8px; }
@@ -59,9 +59,10 @@
     <ul class="nav nav-pills nav-justified mb-3">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-rep">Report</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ref">Refer</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-msg">Msg</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-dm">DM</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-grp">Group</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-otp" style="color:#e3b341;">OTP Bot</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-texts" onclick="loadCatMsg()">Texts</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-otp" style="color:#e3b341;">OTP</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-set" onclick="loadCreds()">Set</button></li>
     </ul>
 
@@ -76,14 +77,22 @@
                 </select>
                 <label>Target Link / Username</label>
                 <input type="text" class="form-control mb-2" id="r-target" placeholder="https://t.me/Target">
+                
                 <div class="form-check mb-3 mt-2">
                     <input class="form-check-input" type="checkbox" id="r-join" checked style="background-color: #0d1117; border-color: #30363d;">
                     <label class="form-check-label" for="r-join" style="color: var(--cyber); font-size: 0.65rem; font-weight: bold; text-transform: uppercase;">ALWAYS JOIN TARGET BEFORE REPORTING</label>
                 </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="r-use-msg" checked style="background-color: #0d1117; border-color: #30363d;">
+                    <label class="form-check-label" for="r-use-msg" style="color: #e3b341; font-size: 0.65rem; font-weight: bold; text-transform: uppercase;">INJECT MESSAGES FROM CATEGORY FILE</label>
+                </div>
+
                 <div id="r-post-box" class="d-none">
                     <label>Post URLs (One per line)</label>
                     <textarea class="form-control mb-3" id="r-posts" rows="3" placeholder="https://t.me/channel/123"></textarea>
                 </div>
+
                 <div class="cyber-card mt-2 mb-3" style="border-style: dashed; border-color: #30363d; background: #010409;">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="leave-after">
@@ -91,6 +100,7 @@
                     </div>
                     <div><label>LEAVE DELAY (Seconds)</label><input type="number" class="form-control" id="leave-delay" value="300" placeholder="Default 300s (5 Min)"></div>
                 </div>
+
                 <div class="row g-2 mb-4">
                     <div class="col-6"><label>Accounts</label><input type="number" class="form-control" id="r-acc" value="{{ stats.active }}"></div>
                     <div class="col-6">
@@ -115,7 +125,7 @@
             </div>
         </div>
 
-        <div class="tab-pane fade" id="tab-msg">
+        <div class="tab-pane fade" id="tab-dm">
             <div class="cyber-card">
                 <label>Receiver (ID/Username)</label><input type="text" class="form-control mb-3" id="m-target" placeholder="@username">
                 <label>Message Content</label><textarea class="form-control mb-3" id="m-text" rows="3" placeholder="Type your message..."></textarea>
@@ -134,6 +144,18 @@
                 </div>
                 <button class="btn btn-outline-info w-100 py-3 mt-2 launch-btn" style="border-color: #30363d;" onclick="fire('health', this)">API HEALTH CHECK</button>
                 <button class="btn btn-outline-warning w-100 py-3 mt-2" onclick="checkProxies(this)">CHECK PROXIES STATUS</button>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-texts">
+            <div class="cyber-card">
+                <h6 style="color: #e3b341; text-align: center; font-weight: bold;">CATEGORY MESSAGES (ONE PER LINE)</h6>
+                <label>Select Category</label>
+                <select class="form-select mb-3" id="cat-selector" onchange="loadCatMsg()">
+                    <option value="4">Child Abuse</option><option value="3">Pornography</option><option value="1">Spam</option><option value="8">Scam</option><option value="6">Drugs</option><option value="2">Violence</option><option value="5">Copyright</option><option value="7">Details</option><option value="9">Other</option>
+                </select>
+                <textarea class="form-control mb-3" id="cat-textarea" rows="8" placeholder="Enter messages here. The bot will pick a random line during the attack."></textarea>
+                <button class="btn btn-cyber w-100" onclick="saveCatMsg(this)">SAVE CATEGORY MESSAGES</button>
             </div>
         </div>
 
@@ -165,10 +187,18 @@
                 <button class="btn btn-outline-info w-100 mb-4" onclick="saveTiming(this)">SAVE TIMING PARAMETERS</button>
                 <hr style="border-color: #30363d; margin: 20px 0;">
                 
-                <label>Upload .Session Files</label><input type="file" id="up-f" multiple class="form-control mb-2">
-                <button class="btn btn-cyber w-100 mb-4" onclick="upSess(this)">UPLOAD SESSIONS</button>
-                <a href="/download_sessions" class="btn btn-outline-info w-100 mb-4 py-2">DOWNLOAD ZIPPED SESSIONS</a>
+                <h6 style="color: var(--cyber); text-align: center; font-weight: bold;">SESSION MANAGEMENT</h6>
+                <label>Upload New .Session Files</label><input type="file" id="up-f" multiple class="form-control mb-2">
+                <button class="btn btn-cyber w-100 mb-2" onclick="upSess(this)">UPLOAD ACTIVE SESSIONS</button>
+                <a href="/download_sessions" class="btn btn-outline-success w-100 mb-4 py-2">DOWNLOAD ACTIVE ZIP</a>
                 
+                <label>Expired Sessions Found: <span style="color:#f85149;">{{ stats.expired }}</span></label>
+                <div class="row g-2 mb-4">
+                    <div class="col-6"><a href="/download_expired" class="btn btn-outline-warning w-100 h-100 d-flex align-items-center justify-content-center">EXPORT EXPIRED</a></div>
+                    <div class="col-6"><button class="btn btn-stop w-100 py-2" onclick="deleteExpired(this)">DELETE EXPIRED</button></div>
+                </div>
+                <hr style="border-color: #30363d; margin: 20px 0;">
+
                 <label>Proxy List (SOCKS5)</label><textarea class="form-control mb-2" id="px-t" rows="4">{{ proxies }}</textarea>
                 <button class="btn btn-cyber w-100 mb-4" onclick="upProx(this)">SAVE PROXIES</button>
                 
@@ -222,6 +252,7 @@
             p.reason = document.getElementById('r-reason').value;
             p.acc_limit = document.getElementById('r-acc').value;
             p.join_first = document.getElementById('r-join').checked;
+            p.use_custom_msg = document.getElementById('r-use-msg').checked;
             p.leave_after = document.getElementById('leave-after').checked;
             p.leave_delay = document.getElementById('leave-delay').value;
         } else if(a === 'refer') { p.target = document.getElementById('ref-target').value; p.acc_limit = document.getElementById('ref-acc').value;
@@ -241,6 +272,7 @@
 
     async function clr() { await fetch('/clear', {method: 'POST'}); document.getElementById('log').innerHTML = ''; }
     
+    // --- SESSIONS ---
     async function upSess(btn) {
         btn.innerText = "UPLOADING...";
         let fd = new FormData();
@@ -248,7 +280,14 @@
         await fetch('/upload_sessions', {method: 'POST', body: fd});
         location.reload();
     }
+    async function deleteExpired(btn) {
+        if(!confirm("Are you sure you want to delete all expired sessions?")) return;
+        btn.innerText = "DELETING...";
+        await fetch('/delete_expired', {method: 'POST'});
+        setTimeout(() => location.reload(), 1000);
+    }
     
+    // --- SETTINGS ---
     async function upProx(btn) {
         let originalText = btn.innerText; btn.innerText = "SAVING...";
         let px = document.getElementById('px-t').value;
@@ -263,6 +302,21 @@
         loadCreds();
     }
 
+    // --- CATEGORY TEXT MESSAGES ---
+    async function loadCatMsg() {
+        let cat = document.getElementById('cat-selector').value;
+        let res = await fetch('/get_messages', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({category: cat})});
+        let j = await res.json();
+        document.getElementById('cat-textarea').value = j.content;
+    }
+    async function saveCatMsg(btn) {
+        let originalText = btn.innerText; btn.innerText = "SAVING...";
+        let cat = document.getElementById('cat-selector').value;
+        let content = document.getElementById('cat-textarea').value;
+        await fetch('/save_messages', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({category: cat, content: content})});
+        setTimeout(() => { btn.innerText = "SAVED!"; setTimeout(() => btn.innerText = originalText, 1500); }, 500);
+    }
+
     // --- API LIST MANAGEMENT ---
     async function loadCreds() {
         let res = await fetch('/get_creds');
@@ -272,8 +326,9 @@
             html += '<li class="list-group-item text-center" style="background: #010409; color: #8b949e; border-color:#30363d; font-size: 0.8rem;">No API Credentials Saved</li>';
         }
         j.forEach((c, i) => {
-            html += `<li class="list-group-item d-flex justify-content-between align-items-center" style="background: #010409; color: var(--cyber); border-color:#30363d; font-size: 0.8rem; font-family: monospace;">
-                ID: ${c.api_id}
+            let hashShort = c.api_hash.substring(0, 8) + '...';
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center" style="background: #010409; color: var(--cyber); border-color:#30363d; font-size: 0.75rem; font-family: monospace;">
+                ${c.api_id} | ${hashShort}
                 <button class="btn btn-sm btn-danger py-0 px-2" style="font-weight: bold;" onclick="delCred(${i})">X</button>
             </li>`;
         });
