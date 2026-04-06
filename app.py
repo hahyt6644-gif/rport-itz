@@ -3,6 +3,7 @@ import requests
 from zipfile import ZipFile
 from flask import Flask, render_template, request, jsonify, Response, session, send_file
 from telethon import TelegramClient, functions, types, events
+from telethon.sessions import MemorySession
 from telethon.errors import AuthKeyUnregisteredError, UserDeactivatedBanError, SessionExpiredError, SessionRevokedError
 from datetime import datetime
 
@@ -17,9 +18,20 @@ CREDS_FILE = os.path.join(BASE_DIR, 'credentials.json')
 PROXIES_FILE = os.path.join(BASE_DIR, 'proxies.txt')
 SESSIONS_DIR = os.path.join(BASE_DIR, 'sessions')
 EXPIRED_DIR = os.path.join(BASE_DIR, 'expired_sessions')
+MESSAGES_DIR = os.path.join(BASE_DIR, 'messages')
 
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(EXPIRED_DIR, exist_ok=True)
+os.makedirs(MESSAGES_DIR, exist_ok=True)
+
+# Generate category message files automatically
+REASON_FILES = {
+    '1': 'spam.txt', '2': 'violence.txt', '3': 'pornography.txt', 
+    '4': 'child_abuse.txt', '5': 'copyright.txt', '6': 'drugs.txt', 
+    '7': 'personal_details.txt', '8': 'fake.txt', '9': 'other.txt'
+}
+for f_name in REASON_FILES.values():
+    open(os.path.join(MESSAGES_DIR, f_name), 'a').close()
 
 app = Flask(__name__)
 app.secret_key = 'itz_dev_super_secret_key_2026'
@@ -55,7 +67,7 @@ def get_balanced_creds(index=0):
     if os.path.exists(CREDS_FILE):
         try:
             with open(CREDS_FILE, 'r') as f: creds = json.load(f)
-            if creds and isinstance(creds, list):
+            if creds and isinstance(creds, list) and len(creds) > 0:
                 idx = index % len(creds)
                 return creds[idx]['api_id'], creds[idx]['api_hash']
         except: pass
@@ -142,9 +154,6 @@ async def execute_task(data):
         for attempt in range(2):
             if STOP_SIGNAL.is_set(): break
             proxy_data, proxy_raw = get_proxy()
-            if not proxy_data:
-                emit_log(f"⚠️ {basename}: NO PROXY AVAILABLE.")
-                break
                 
             client = TelegramClient(
                 s_path.replace('.session',''), api_id, api_hash, proxy=proxy_data,
@@ -187,8 +196,18 @@ async def execute_task(data):
                 emit_log(f"🔗 {basename}: REF SUCCESS.")
 
             elif action == 'report':
+                reason_code = data.get('reason', '9')
                 reason_map = {'1': types.InputReportReasonSpam(), '2': types.InputReportReasonViolence(), '3': types.InputReportReasonPornography(), '4': types.InputReportReasonChildAbuse(), '5': types.InputReportReasonCopyright(), '6': types.InputReportReasonIllegalDrugs(), '7': types.InputReportReasonPersonalDetails(), '8': types.InputReportReasonFake(), '9': types.InputReportReasonOther()}
-                reason = reason_map.get(data.get('reason'), types.InputReportReasonOther())
+                reason = reason_map.get(reason_code, types.InputReportReasonOther())
+                
+                # --- CATEGORY WISE MESSAGE SYSTEM ---
+                custom_msg = "Violations"
+                file_name = REASON_FILES.get(reason_code, 'other.txt')
+                try:
+                    with open(os.path.join(MESSAGES_DIR, file_name), 'r', encoding='utf-8') as mf:
+                        lines = [l.strip() for l in mf if l.strip()]
+                        if lines: custom_msg = random.choice(lines)
+                except: pass
                 
                 ent = None
                 clean_target = target_input.split('t.me/')[-1].split('/')[0].replace('@', '').replace('+', '').split('?')[0]
@@ -232,14 +251,14 @@ async def execute_task(data):
                 if data.get('report_mode') == 'posts' and data.get('post_links'):
                     ids = [int(re.search(r'/(\d+)$', l).group(1)) for l in data['post_links'] if re.search(r'/(\d+)$', l)]
                     if ids:
-                        try: await client(functions.messages.ReportRequest(peer=ent, id=ids, reason=reason, message="Violations"))
+                        try: await client(functions.messages.ReportRequest(peer=ent, id=ids, reason=reason, message=custom_msg))
                         except TypeError:
-                            res = await client(functions.messages.ReportRequest(peer=ent, id=ids, option=b'', message="Violations"))
-                            if hasattr(res, 'options') and res.options: await client(functions.messages.ReportRequest(peer=ent, id=ids, option=res.options[0].option, message="Violations"))
+                            res = await client(functions.messages.ReportRequest(peer=ent, id=ids, option=b'', message=custom_msg))
+                            if hasattr(res, 'options') and res.options: await client(functions.messages.ReportRequest(peer=ent, id=ids, option=res.options[0].option, message=custom_msg))
                         emit_log(f"✅ {basename}: {len(ids)} POSTS REPORTED.")
                 
-                await client(functions.account.ReportPeerRequest(peer=ent, reason=reason, message="Violations"))
-                emit_log(f"✅ {basename}: PEER REPORTED.")
+                await client(functions.account.ReportPeerRequest(peer=ent, reason=reason, message=custom_msg))
+                emit_log(f"✅ {basename}: PEER REPORTED (Msg: {custom_msg[:10]}...)")
 
                 if data.get('leave_after'):
                     delay = int(data.get('leave_delay', 300))
@@ -413,8 +432,6 @@ def run_bot_thread(token):
     try:
         BOT_LOOP = asyncio.new_event_loop()
         asyncio.set_event_loop(BOT_LOOP)
-        
-        # .updater(None) entirely strips polling from the background. Prevents crashes on Render!
         BOT_APP = ApplicationBuilder().token(token).updater(None).build()
         BOT_APP.add_handler(CommandHandler("start", bot_start_cmd))
         BOT_APP.add_handler(CommandHandler("cancel", bot_cancel_cmd))
@@ -509,6 +526,7 @@ def save_proxies():
     with open(PROXIES_FILE, 'w') as f: f.write(request.json.get('proxies', ''))
     return jsonify({"status": "ok"})
 
+# --- API KEY MANAGEMENT ROUTES ---
 @app.route('/save_creds', methods=['POST'])
 def save_creds():
     if not session.get('logged_in'): return "", 401
@@ -520,6 +538,59 @@ def save_creds():
     with open(CREDS_FILE, 'w') as f: json.dump(creds, f)
     return jsonify({"status": "ok"})
 
+@app.route('/get_creds', methods=['GET'])
+def get_creds():
+    if not session.get('logged_in'): return "", 401
+    if os.path.exists(CREDS_FILE):
+        try: return jsonify(json.load(open(CREDS_FILE, 'r')))
+        except: pass
+    return jsonify([])
+
+@app.route('/delete_cred', methods=['POST'])
+def delete_cred():
+    if not session.get('logged_in'): return "", 401
+    idx = request.json.get('index')
+    try:
+        creds = json.load(open(CREDS_FILE, 'r'))
+        creds.pop(idx)
+        json.dump(creds, open(CREDS_FILE, 'w'))
+    except: pass
+    return jsonify({"status": "ok"})
+
+@app.route('/check_api_keys', methods=['POST'])
+def check_api_keys():
+    if not session.get('logged_in'): return "", 401
+    def run_api_check():
+        creds = []
+        try:
+            with open(CREDS_FILE, 'r') as f: creds = json.load(f)
+        except: return
+        valid, dead = 0, 0
+        loop = asyncio.new_event_loop()
+        emit_log("🔍 STARTING API KEY AUDIT...")
+        for c in creds:
+            api_id = str(c.get('api_id', ''))
+            api_hash = str(c.get('api_hash', ''))
+            if not api_id or not api_hash: continue
+            
+            # Use MemorySession so it doesn't create extra files
+            client = TelegramClient(MemorySession(), api_id, api_hash)
+            try:
+                loop.run_until_complete(client.connect())
+                if client.is_connected():
+                    valid += 1
+                    emit_log(f"🔑 API {api_id}: ACTIVE & VALID")
+                loop.run_until_complete(client.disconnect())
+            except Exception as e:
+                dead += 1
+                emit_log(f"❌ API {api_id}: DEAD ({type(e).__name__})")
+                
+        emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
+    
+    threading.Thread(target=run_api_check).start()
+    return jsonify({"status": "ok"})
+
+# --- EXISTING ROUTES ---
 @app.route('/check_proxies', methods=['POST'])
 def check_proxies():
     if not session.get('logged_in'): return "", 401
@@ -565,12 +636,10 @@ def start_bot():
     token = load_config().get('bot_token', '')
     if not token: return jsonify({"status": "no_token"})
     
-    # Start bot thread
     BOT_THREAD = threading.Thread(target=run_bot_thread, args=(token,))
     BOT_THREAD.daemon = True
     BOT_THREAD.start()
 
-    # Apply Webhook Automatically
     webhook_url = request.url_root.replace('http://', 'https://') + 'webhook'
     r = requests.get(f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}")
     if r.status_code == 200: emit_log(f"🌐 WEBHOOK SET TO: {webhook_url}")
@@ -584,7 +653,6 @@ def stop_bot():
     if not session.get('logged_in'): return "", 401
     token = load_config().get('bot_token', '')
 
-    # Remove Webhook Automatically
     if token:
         requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
         emit_log("🗑️ WEBHOOK DELETED FROM TELEGRAM.")
@@ -615,6 +683,5 @@ def stream_logs():
     return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
-    # Grab Render's dynamic PORT, fallback to 5000 for local testing
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
