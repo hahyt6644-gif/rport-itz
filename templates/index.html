@@ -186,14 +186,19 @@
             </div>
         </div>
 
-        <div class="tab-pane fade" id="tab-set">
+                <div class="tab-pane fade" id="tab-set">
             <div class="cyber-card">
-                <h6 style="color: var(--cyber); margin-bottom: 15px; text-align: center; font-weight: bold;">TIMING CONTROLS</h6>
-                <div class="row g-2 mb-4">
-                    <div class="col-4"><label>Min(s)</label><input type="number" class="form-control" id="min-d" value="3"></div>
-                    <div class="col-4"><label>Max(s)</label><input type="number" class="form-control" id="max-d" value="8"></div>
-                    <div class="col-4"><label>Bot(s)</label><input type="number" class="form-control" id="bot-w" value="60"></div>
+                <h6 style="color: var(--cyber); text-align: center; font-weight: bold;">OPERATION TIMING PARAMETERS</h6>
+                
+                <div class="row g-2 mb-3">
+                    <div class="col-4"><label>Min(s)</label><input type="number" class="form-control" id="min-d" value="{{ conf.get('min_delay', 5) }}"></div>
+                    <div class="col-4"><label>Max(s)</label><input type="number" class="form-control" id="max-d" value="{{ conf.get('max_delay', 15) }}"></div>
+                    <div class="col-4"><label>Bot(s)</label><input type="number" class="form-control" id="bot-w" value="{{ conf.get('bot_w', 60) }}"></div>
                 </div>
+                <button class="btn btn-outline-info w-100 mb-4" onclick="saveTiming(this)">SAVE TIMING PARAMETERS</button>
+                
+                <hr style="border-color: #30363d; margin: 20px 0;">
+
                 <hr style="border-color: #30363d; margin: 20px 0;">
                 
                 <label>Upload .Session Files</label>
@@ -342,6 +347,26 @@
         if(json.status === "no_token") alert("Please save a Bot Token first!");
         else setTimeout(() => location.reload(), 1500);
     }
+    
+    async function saveTiming(btn) {
+        let originalText = btn.innerText;
+        btn.innerText = "SAVING...";
+        let data = {
+            min_d: document.getElementById('min-d').value,
+            max_d: document.getElementById('max-d').value,
+            bot_w: document.getElementById('bot-w').value
+        };
+        await fetch('/save_settings', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify(data)
+        });
+        setTimeout(() => { 
+            btn.innerText = "SAVED!"; 
+            setTimeout(() => btn.innerText = originalText, 1500); 
+        }, 500);
+    }
+    
 
     async function stopBot(btn) {
         btn.innerText = "STOPPING...";
