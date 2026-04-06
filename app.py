@@ -31,7 +31,9 @@ REASON_FILES = {
     '7': 'personal_details.txt', '8': 'fake.txt', '9': 'other.txt'
 }
 for f_name in REASON_FILES.values():
-    open(os.path.join(MESSAGES_DIR, f_name), 'a').close()
+    f_path = os.path.join(MESSAGES_DIR, f_name)
+    if not os.path.exists(f_path):
+        open(f_path, 'a').close()
 
 app = Flask(__name__)
 app.secret_key = 'itz_dev_super_secret_key_2026'
@@ -202,12 +204,13 @@ async def execute_task(data):
                 
                 # --- CATEGORY WISE MESSAGE SYSTEM ---
                 custom_msg = "Violations"
-                file_name = REASON_FILES.get(reason_code, 'other.txt')
-                try:
-                    with open(os.path.join(MESSAGES_DIR, file_name), 'r', encoding='utf-8') as mf:
-                        lines = [l.strip() for l in mf if l.strip()]
-                        if lines: custom_msg = random.choice(lines)
-                except: pass
+                if data.get('use_custom_msg', False):
+                    file_name = REASON_FILES.get(reason_code, 'other.txt')
+                    try:
+                        with open(os.path.join(MESSAGES_DIR, file_name), 'r', encoding='utf-8') as mf:
+                            lines = [l.strip() for l in mf if l.strip()]
+                            if lines: custom_msg = random.choice(lines)
+                    except: pass
                 
                 ent = None
                 clean_target = target_input.split('t.me/')[-1].split('/')[0].replace('@', '').replace('+', '').split('?')[0]
@@ -506,6 +509,27 @@ def clear_logs():
     LOG_HISTORY.clear()
     return jsonify({"status": "ok"})
 
+# --- CATEGORY MESSAGES ROUTES ---
+@app.route('/get_messages', methods=['POST'])
+def get_messages():
+    if not session.get('logged_in'): return "", 401
+    cat = request.json.get('category', '9')
+    fname = REASON_FILES.get(cat, 'other.txt')
+    path = os.path.join(MESSAGES_DIR, fname)
+    content = open(path, 'r', encoding='utf-8').read() if os.path.exists(path) else ""
+    return jsonify({"content": content})
+
+@app.route('/save_messages', methods=['POST'])
+def save_messages():
+    if not session.get('logged_in'): return "", 401
+    cat = request.json.get('category', '9')
+    content = request.json.get('content', '')
+    fname = REASON_FILES.get(cat, 'other.txt')
+    with open(os.path.join(MESSAGES_DIR, fname), 'w', encoding='utf-8') as f:
+        f.write(content)
+    return jsonify({"status": "ok"})
+
+# --- SESSIONS & PROXIES ROUTES ---
 @app.route('/upload_sessions', methods=['POST'])
 def upload_sessions():
     if not session.get('logged_in'): return "", 401
@@ -520,10 +544,42 @@ def download_sessions():
     shutil.make_archive(zip_path, 'zip', SESSIONS_DIR)
     return send_file(f"{zip_path}.zip", as_attachment=True)
 
+@app.route('/download_expired')
+def download_expired():
+    if not session.get('logged_in'): return "", 401
+    zip_path = os.path.join(BASE_DIR, 'expired_sessions_archive')
+    shutil.make_archive(zip_path, 'zip', EXPIRED_DIR)
+    return send_file(f"{zip_path}.zip", as_attachment=True)
+
+@app.route('/delete_expired', methods=['POST'])
+def delete_expired():
+    if not session.get('logged_in'): return "", 401
+    for f in glob.glob(os.path.join(EXPIRED_DIR, '*.session')):
+        os.remove(f)
+    emit_log("🗑️ ALL EXPIRED SESSIONS DELETED.")
+    return jsonify({"status": "ok"})
+
 @app.route('/save_proxies', methods=['POST'])
 def save_proxies():
     if not session.get('logged_in'): return "", 401
     with open(PROXIES_FILE, 'w') as f: f.write(request.json.get('proxies', ''))
+    return jsonify({"status": "ok"})
+
+@app.route('/check_proxies', methods=['POST'])
+def check_proxies():
+    if not session.get('logged_in'): return "", 401
+    def run_check():
+        global PROXY_STATUS
+        if not os.path.exists(PROXIES_FILE): return
+        with open(PROXIES_FILE, 'r') as f: proxies = [l.strip() for l in f if l.strip()]
+        active, dead = 0, 0
+        loop = asyncio.new_event_loop()
+        for p in proxies:
+            if loop.run_until_complete(validate_proxy(p)): active += 1
+            else: dead += 1
+        PROXY_STATUS = {"active": active, "dead": dead, "last_check": datetime.now().strftime('%H:%M')}
+        emit_log(f"📊 PROXY AUDIT: {active} OK, {dead} DEAD.")
+    threading.Thread(target=run_check).start()
     return jsonify({"status": "ok"})
 
 # --- API KEY MANAGEMENT ROUTES ---
@@ -569,43 +625,27 @@ def check_api_keys():
         loop = asyncio.new_event_loop()
         emit_log("🔍 STARTING API KEY AUDIT...")
         for c in creds:
-            api_id = str(c.get('api_id', ''))
-            api_hash = str(c.get('api_hash', ''))
-            if not api_id or not api_hash: continue
-            
-            # Use MemorySession so it doesn't create extra files
-            client = TelegramClient(MemorySession(), api_id, api_hash)
             try:
+                # FIX: Telethon needs API ID to be an INTEGER!
+                api_id = int(c.get('api_id', 0))
+                api_hash = str(c.get('api_hash', ''))
+                if not api_id or not api_hash: continue
+                
+                proxy_dict, _ = get_proxy()
+                client = TelegramClient(MemorySession(), api_id, api_hash, proxy=proxy_dict)
                 loop.run_until_complete(client.connect())
+                
                 if client.is_connected():
                     valid += 1
                     emit_log(f"🔑 API {api_id}: ACTIVE & VALID")
                 loop.run_until_complete(client.disconnect())
             except Exception as e:
                 dead += 1
-                emit_log(f"❌ API {api_id}: DEAD ({type(e).__name__})")
+                emit_log(f"❌ API {c.get('api_id')}: DEAD ({type(e).__name__})")
                 
         emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
     
     threading.Thread(target=run_api_check).start()
-    return jsonify({"status": "ok"})
-
-# --- EXISTING ROUTES ---
-@app.route('/check_proxies', methods=['POST'])
-def check_proxies():
-    if not session.get('logged_in'): return "", 401
-    def run_check():
-        global PROXY_STATUS
-        if not os.path.exists(PROXIES_FILE): return
-        with open(PROXIES_FILE, 'r') as f: proxies = [l.strip() for l in f if l.strip()]
-        active, dead = 0, 0
-        loop = asyncio.new_event_loop()
-        for p in proxies:
-            if loop.run_until_complete(validate_proxy(p)): active += 1
-            else: dead += 1
-        PROXY_STATUS = {"active": active, "dead": dead, "last_check": datetime.now().strftime('%H:%M')}
-        emit_log(f"📊 PROXY AUDIT: {active} OK, {dead} DEAD.")
-    threading.Thread(target=run_check).start()
     return jsonify({"status": "ok"})
 
 @app.route('/save_settings', methods=['POST'])
