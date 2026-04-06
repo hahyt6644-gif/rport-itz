@@ -454,18 +454,7 @@ def index():
     proxies = open(PROXIES_FILE).read() if os.path.exists(PROXIES_FILE) else ""
     conf = load_config()
     return render_template('index.html', logged_in=True, stats=stats, proxies=proxies, bot_running=IS_BOT_RUNNING, bot_token=conf.get('bot_token',''), conf=conf)
-@app.route('/save_settings', methods=['POST'])
-def save_settings():
-    if not session.get('logged_in'): return "", 401
-    conf = load_config()
-    d = request.json
-    conf['min_delay'] = int(d.get('min_d', 5))
-    conf['max_delay'] = int(d.get('max_d', 15))
-    conf['bot_w'] = int(d.get('bot_w', 60))
-    save_config(conf)
-    emit_log("⚙️ Timing Settings Saved.")
-    return jsonify({"status": "ok"})
-    
+
 @app.route('/login', methods=['POST'])
 def login():
     conf = load_config()
