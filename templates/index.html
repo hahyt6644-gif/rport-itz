@@ -47,14 +47,12 @@
 <div class="container py-3">
     <div class="text-center mb-3">
         <h5 style="color: var(--cyber); text-shadow: 0 0 8px var(--cyber); font-weight: 800; margin-bottom: 10px;">ITZ-DEV COMMAND</h5>
-        
         <div class="d-flex justify-content-center gap-2 mb-2 flex-wrap">
             <span class="badge-acc">SESSIONS: {{ stats.active }}</span>
             <span class="badge-exp">EXPIRED: {{ stats.expired }}</span>
             <span class="badge bg-success" style="font-size: 0.75rem;">PROXY OK: {{ stats.p_active }}</span>
             <span class="badge bg-danger" style="font-size: 0.75rem;">PROXY DEAD: {{ stats.p_dead }}</span>
         </div>
-
         <a href="https://t.me/ITZ_ME_545" style="color:var(--cyber); font-size:0.8rem; text-decoration:none; font-weight:bold;">DEV: @ITZ_DEV</a>
     </div>
 
@@ -64,7 +62,7 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-msg">Msg</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-grp">Group</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-otp" style="color:#e3b341;">OTP Bot</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-set">Set</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-set" onclick="loadCreds()">Set</button></li>
     </ul>
 
     <div class="tab-content">
@@ -78,37 +76,25 @@
                 </select>
                 <label>Target Link / Username</label>
                 <input type="text" class="form-control mb-2" id="r-target" placeholder="https://t.me/Target">
-                
                 <div class="form-check mb-3 mt-2">
                     <input class="form-check-input" type="checkbox" id="r-join" checked style="background-color: #0d1117; border-color: #30363d;">
-                    <label class="form-check-label" for="r-join" style="color: var(--cyber); font-size: 0.65rem; font-weight: bold; text-transform: uppercase;">
-                        ALWAYS JOIN TARGET BEFORE REPORTING
-                    </label>
+                    <label class="form-check-label" for="r-join" style="color: var(--cyber); font-size: 0.65rem; font-weight: bold; text-transform: uppercase;">ALWAYS JOIN TARGET BEFORE REPORTING</label>
                 </div>
-
                 <div id="r-post-box" class="d-none">
                     <label>Post URLs (One per line)</label>
                     <textarea class="form-control mb-3" id="r-posts" rows="3" placeholder="https://t.me/channel/123"></textarea>
                 </div>
-
                 <div class="cyber-card mt-2 mb-3" style="border-style: dashed; border-color: #30363d; background: #010409;">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="leave-after">
                         <label class="form-check-label" for="leave-after">LEAVE GROUP AFTER REPORT (Anti-Ban)</label>
                     </div>
-                    <div>
-                        <label>LEAVE DELAY (Seconds)</label>
-                        <input type="number" class="form-control" id="leave-delay" value="300" placeholder="Default 300s (5 Min)">
-                    </div>
+                    <div><label>LEAVE DELAY (Seconds)</label><input type="number" class="form-control" id="leave-delay" value="300" placeholder="Default 300s (5 Min)"></div>
                 </div>
-
                 <div class="row g-2 mb-4">
+                    <div class="col-6"><label>Accounts</label><input type="number" class="form-control" id="r-acc" value="{{ stats.active }}"></div>
                     <div class="col-6">
-                        <label>Accounts</label>
-                        <input type="number" class="form-control" id="r-acc" value="{{ stats.active }}">
-                    </div>
-                    <div class="col-6">
-                        <label>Reason</label>
+                        <label>Reason Category</label>
                         <select class="form-select" id="r-reason">
                             <option value="4">Child Abuse</option><option value="3">Pornography</option><option value="1">Spam</option><option value="8">Scam</option><option value="6">Drugs</option><option value="2">Violence</option><option value="5">Copyright</option><option value="7">Details</option><option value="9">Other</option>
                         </select>
@@ -123,43 +109,29 @@
 
         <div class="tab-pane fade" id="tab-ref">
             <div class="cyber-card">
-                <label>Bot Referral Link</label>
-                <input type="text" class="form-control mb-3" id="ref-target" placeholder="https://t.me/Bot?start=123">
-                <label>Accounts To Use</label>
-                <input type="number" class="form-control mb-4" id="ref-acc" value="{{ stats.active }}">
-                <div class="d-flex gap-2">
-                    <button class="btn btn-cyber w-75 launch-btn" onclick="fire('refer', this)">GET REFERRALS</button>
-                    <button class="btn btn-stop w-25" onclick="stop()">STOP</button>
-                </div>
+                <label>Bot Referral Link</label><input type="text" class="form-control mb-3" id="ref-target" placeholder="https://t.me/Bot?start=123">
+                <label>Accounts To Use</label><input type="number" class="form-control mb-4" id="ref-acc" value="{{ stats.active }}">
+                <div class="d-flex gap-2"><button class="btn btn-cyber w-75 launch-btn" onclick="fire('refer', this)">GET REFERRALS</button><button class="btn btn-stop w-25" onclick="stop()">STOP</button></div>
             </div>
         </div>
 
         <div class="tab-pane fade" id="tab-msg">
             <div class="cyber-card">
-                <label>Receiver (ID/Username)</label>
-                <input type="text" class="form-control mb-3" id="m-target" placeholder="@username">
-                <label>Message Content</label>
-                <textarea class="form-control mb-3" id="m-text" rows="3" placeholder="Type your message..."></textarea>
-                <label>Accounts To Use</label>
-                <input type="number" class="form-control mb-4" id="m-acc" value="{{ stats.active }}">
-                <div class="d-flex gap-2">
-                    <button class="btn btn-cyber w-75 launch-btn" onclick="fire('message', this)">SEND MESSAGE</button>
-                    <button class="btn btn-stop w-25" onclick="stop()">STOP</button>
-                </div>
+                <label>Receiver (ID/Username)</label><input type="text" class="form-control mb-3" id="m-target" placeholder="@username">
+                <label>Message Content</label><textarea class="form-control mb-3" id="m-text" rows="3" placeholder="Type your message..."></textarea>
+                <label>Accounts To Use</label><input type="number" class="form-control mb-4" id="m-acc" value="{{ stats.active }}">
+                <div class="d-flex gap-2"><button class="btn btn-cyber w-75 launch-btn" onclick="fire('message', this)">SEND MESSAGE</button><button class="btn btn-stop w-25" onclick="stop()">STOP</button></div>
             </div>
         </div>
 
         <div class="tab-pane fade" id="tab-grp">
             <div class="cyber-card">
-                <label>Group/Channel Target</label>
-                <input type="text" class="form-control mb-4" id="t-target" placeholder="https://t.me/GroupLink">
-                <label>Accounts To Use</label>
-                <input type="number" class="form-control mb-4" id="t-acc" value="{{ stats.active }}">
+                <label>Group/Channel Target</label><input type="text" class="form-control mb-4" id="t-target" placeholder="https://t.me/GroupLink">
+                <label>Accounts To Use</label><input type="number" class="form-control mb-4" id="t-acc" value="{{ stats.active }}">
                 <div class="row g-2 mb-3">
                     <div class="col-6"><button class="btn btn-cyber w-100 launch-btn" onclick="fire('join', this)">JOIN ALL</button></div>
                     <div class="col-6"><button class="btn btn-stop w-100" onclick="fire('leave', null)">LEAVE ALL</button></div>
                 </div>
-                
                 <button class="btn btn-outline-info w-100 py-3 mt-2 launch-btn" style="border-color: #30363d;" onclick="fire('health', this)">API HEALTH CHECK</button>
                 <button class="btn btn-outline-warning w-100 py-3 mt-2" onclick="checkProxies(this)">CHECK PROXIES STATUS</button>
             </div>
@@ -168,17 +140,13 @@
         <div class="tab-pane fade" id="tab-otp">
             <div class="cyber-card">
                 <h6 style="color: #e3b341; text-align: center; font-weight: bold;">TELEGRAM OTP EXTRACTOR BOT</h6>
-                
                 <div class="text-center mb-4 mt-3">
                     <span id="bot-status-badge" class="badge {{ 'bg-success' if bot_running else 'bg-danger' }} p-2" style="font-size: 1rem;">
                         STATUS: {{ 'RUNNING' if bot_running else 'STOPPED' }}
                     </span>
                 </div>
-
-                <label>Update Bot Token (BotFather)</label>
-                <input type="text" class="form-control mb-2" id="bot-token" value="{{ bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                <label>Update Bot Token (BotFather)</label><input type="text" class="form-control mb-2" id="bot-token" value="{{ bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
                 <button class="btn btn-outline-info w-100 mb-4" onclick="saveBotToken(this)">SAVE TOKEN</button>
-
                 <div class="row g-2">
                     <div class="col-6"><button class="btn btn-cyber w-100 py-3" onclick="startBot(this)">START BOT</button></div>
                     <div class="col-6"><button class="btn btn-stop w-100 py-3" onclick="stopBot(this)">STOP BOT</button></div>
@@ -189,29 +157,33 @@
         <div class="tab-pane fade" id="tab-set">
             <div class="cyber-card">
                 <h6 style="color: var(--cyber); text-align: center; font-weight: bold;">OPERATION TIMING PARAMETERS</h6>
-                
                 <div class="row g-2 mb-3">
                     <div class="col-4"><label>Min(s)</label><input type="number" class="form-control" id="min-d" value="{{ conf.get('min_delay', 5) }}"></div>
                     <div class="col-4"><label>Max(s)</label><input type="number" class="form-control" id="max-d" value="{{ conf.get('max_delay', 15) }}"></div>
                     <div class="col-4"><label>Bot(s)</label><input type="number" class="form-control" id="bot-w" value="{{ conf.get('bot_w', 60) }}"></div>
                 </div>
                 <button class="btn btn-outline-info w-100 mb-4" onclick="saveTiming(this)">SAVE TIMING PARAMETERS</button>
-                
                 <hr style="border-color: #30363d; margin: 20px 0;">
                 
-                <label>Upload .Session Files</label>
-                <input type="file" id="up-f" multiple class="form-control mb-2">
+                <label>Upload .Session Files</label><input type="file" id="up-f" multiple class="form-control mb-2">
                 <button class="btn btn-cyber w-100 mb-4" onclick="upSess(this)">UPLOAD SESSIONS</button>
                 <a href="/download_sessions" class="btn btn-outline-info w-100 mb-4 py-2">DOWNLOAD ZIPPED SESSIONS</a>
                 
-                <label>Proxy List (SOCKS5)</label>
-                <textarea class="form-control mb-2" id="px-t" rows="4">{{ proxies }}</textarea>
+                <label>Proxy List (SOCKS5)</label><textarea class="form-control mb-2" id="px-t" rows="4">{{ proxies }}</textarea>
                 <button class="btn btn-cyber w-100 mb-4" onclick="upProx(this)">SAVE PROXIES</button>
                 
-                <label>Add API Key to Pool</label>
-                <input type="text" id="api-id" class="form-control mb-2" placeholder="API ID">
-                <input type="text" id="api-hash" class="form-control mb-3" placeholder="API HASH">
-                <button class="btn btn-cyber w-100 mb-4" onclick="upCred(this)">ADD KEY</button>
+                <hr style="border-color: #30363d; margin: 20px 0;">
+                <h6 style="color: var(--cyber); text-align: center; font-weight: bold;">API KEY MANAGEMENT</h6>
+                <label>Add New API Credentials</label>
+                <div class="row g-2 mb-3">
+                    <div class="col-5"><input type="text" id="api-id" class="form-control" placeholder="API ID"></div>
+                    <div class="col-5"><input type="text" id="api-hash" class="form-control" placeholder="API HASH"></div>
+                    <div class="col-2"><button class="btn btn-cyber w-100 h-100 p-0" onclick="upCred(this)">+</button></div>
+                </div>
+
+                <label>Saved API Pool</label>
+                <div id="api-list-container" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
+                <button class="btn btn-outline-warning w-100 mb-4 py-2" onclick="checkApiKeys(this)">RUN LIVE VALIDITY CHECK</button>
                 
                 <button class="btn btn-stop w-100 py-3" onclick="logout()">SECURE LOGOUT</button>
             </div>
@@ -234,26 +206,15 @@
         if(s === 'posts') { box.classList.remove('d-none'); } else { box.classList.add('d-none'); }
     }
 
-    function lockBtns(state) {
-        document.querySelectorAll('.launch-btn').forEach(b => b.disabled = state);
-    }
+    function lockBtns(state) { document.querySelectorAll('.launch-btn').forEach(b => b.disabled = state); }
 
-    // --- ENGINE SCRIPTS ---
     async function fire(a, btn) {
         let originalText = "";
-        if (btn) {
-            originalText = btn.innerText;
-            btn.innerText = "RUNNING...";
-            lockBtns(true);
-        }
-
+        if (btn) { originalText = btn.innerText; btn.innerText = "RUNNING..."; lockBtns(true); }
         let p = { 
-            action: a,
-            min_d: document.getElementById('min-d').value,
-            max_d: document.getElementById('max-d').value,
-            bot_w: document.getElementById('bot-w').value
+            action: a, min_d: document.getElementById('min-d').value,
+            max_d: document.getElementById('max-d').value, bot_w: document.getElementById('bot-w').value
         };
-        
         if(a === 'report') {
             p.report_mode = document.getElementById('r-strat').value;
             p.target = document.getElementById('r-target').value;
@@ -263,36 +224,23 @@
             p.join_first = document.getElementById('r-join').checked;
             p.leave_after = document.getElementById('leave-after').checked;
             p.leave_delay = document.getElementById('leave-delay').value;
-        } else if(a === 'refer') {
-            p.target = document.getElementById('ref-target').value;
-            p.acc_limit = document.getElementById('ref-acc').value;
-        } else if(a === 'message') {
-            p.target = document.getElementById('m-target').value;
-            p.message_text = document.getElementById('m-text').value;
-            p.acc_limit = document.getElementById('m-acc').value;
-        } else {
-            p.acc_limit = document.getElementById('t-acc').value;
-            p.target = document.getElementById('t-target').value;
-        }
+        } else if(a === 'refer') { p.target = document.getElementById('ref-target').value; p.acc_limit = document.getElementById('ref-acc').value;
+        } else if(a === 'message') { p.target = document.getElementById('m-target').value; p.message_text = document.getElementById('m-text').value; p.acc_limit = document.getElementById('m-acc').value;
+        } else { p.acc_limit = document.getElementById('t-acc').value; p.target = document.getElementById('t-target').value; }
         
         let res = await fetch('/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(p)});
         let j = await res.json();
         if(j.status === 'busy') alert("A task is already running! Press STOP first.");
-        
-        if (btn) {
-            setTimeout(() => { btn.innerText = originalText; lockBtns(false); }, 1500);
-        }
+        if (btn) setTimeout(() => { btn.innerText = originalText; lockBtns(false); }, 1500);
     }
 
     async function stop() { 
-        await fetch('/stop', {method: 'POST'}); 
-        lockBtns(false);
+        await fetch('/stop', {method: 'POST'}); lockBtns(false);
         document.querySelectorAll('.launch-btn').forEach(b => { if(b.innerText === "RUNNING...") b.innerText = "LAUNCH"; });
     }
 
     async function clr() { await fetch('/clear', {method: 'POST'}); document.getElementById('log').innerHTML = ''; }
     
-    // --- SETTINGS / UPLOADS ---
     async function upSess(btn) {
         btn.innerText = "UPLOADING...";
         let fd = new FormData();
@@ -302,36 +250,56 @@
     }
     
     async function upProx(btn) {
-        let originalText = btn.innerText;
-        btn.innerText = "SAVING...";
+        let originalText = btn.innerText; btn.innerText = "SAVING...";
         let px = document.getElementById('px-t').value;
         await fetch('/save_proxies', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({proxies: px})});
         setTimeout(() => { btn.innerText = originalText; }, 1000);
     }
     
     async function upCred(btn) {
-        let originalText = btn.innerText;
-        btn.innerText = "ADDING...";
         let d = {api_id: document.getElementById('api-id').value, api_hash: document.getElementById('api-hash').value};
         await fetch('/save_creds', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(d)});
-        setTimeout(() => { btn.innerText = originalText; document.getElementById('api-id').value = ""; document.getElementById('api-hash').value = ""; }, 1000);
+        document.getElementById('api-id').value = ""; document.getElementById('api-hash').value = "";
+        loadCreds();
     }
-    
+
+    // --- API LIST MANAGEMENT ---
+    async function loadCreds() {
+        let res = await fetch('/get_creds');
+        let j = await res.json();
+        let html = '<ul class="list-group mb-2">';
+        if(j.length === 0) {
+            html += '<li class="list-group-item text-center" style="background: #010409; color: #8b949e; border-color:#30363d; font-size: 0.8rem;">No API Credentials Saved</li>';
+        }
+        j.forEach((c, i) => {
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center" style="background: #010409; color: var(--cyber); border-color:#30363d; font-size: 0.8rem; font-family: monospace;">
+                ID: ${c.api_id}
+                <button class="btn btn-sm btn-danger py-0 px-2" style="font-weight: bold;" onclick="delCred(${i})">X</button>
+            </li>`;
+        });
+        html += '</ul>';
+        document.getElementById('api-list-container').innerHTML = html;
+    }
+
+    async function delCred(idx) {
+        await fetch('/delete_cred', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({index: idx})});
+        loadCreds();
+    }
+
+    async function checkApiKeys(btn) {
+        btn.innerText = "CHECKING IN BACKGROUND...";
+        await fetch('/check_api_keys', {method: 'POST'});
+        setTimeout(() => { btn.innerText = "RUN LIVE VALIDITY CHECK"; }, 2000);
+    }
+
     async function logout() { await fetch('/logout', {method: 'POST'}); location.reload(); }
-
     async function checkProxies(btn) {
-        btn.innerText = "CHECKING...";
-        await fetch('/check_proxies', {method: 'POST'});
-        setTimeout(() => { 
-            btn.innerText = "CHECK PROXIES STATUS"; 
-            setTimeout(() => { location.reload(); }, 5000);
-        }, 1500);
+        btn.innerText = "CHECKING..."; await fetch('/check_proxies', {method: 'POST'});
+        setTimeout(() => { btn.innerText = "CHECK PROXIES STATUS"; setTimeout(() => { location.reload(); }, 5000); }, 1500);
     }
 
-    // --- OTP BOT SCRIPTS ---
     async function saveBotToken(btn) {
-        btn.innerText = "SAVING...";
-        let token = document.getElementById('bot-token').value;
+        btn.innerText = "SAVING..."; let token = document.getElementById('bot-token').value;
         await fetch('/api/bot/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: token})});
         setTimeout(() => btn.innerText = "SAVE TOKEN", 1500);
     }
@@ -345,29 +313,19 @@
     }
     
     async function saveTiming(btn) {
-        let originalText = btn.innerText;
-        btn.innerText = "SAVING...";
-        let data = {
-            min_d: document.getElementById('min-d').value,
-            max_d: document.getElementById('max-d').value,
-            bot_w: document.getElementById('bot-w').value
-        };
-        await fetch('/save_settings', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify(data)
-        });
-        setTimeout(() => { 
-            btn.innerText = "SAVED!"; 
-            setTimeout(() => btn.innerText = originalText, 1500); 
-        }, 500);
+        let originalText = btn.innerText; btn.innerText = "SAVING...";
+        let data = {min_d: document.getElementById('min-d').value, max_d: document.getElementById('max-d').value, bot_w: document.getElementById('bot-w').value};
+        await fetch('/save_settings', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+        setTimeout(() => { btn.innerText = "SAVED!"; setTimeout(() => btn.innerText = originalText, 1500); }, 500);
     }
 
     async function stopBot(btn) {
-        btn.innerText = "STOPPING...";
-        await fetch('/api/bot/stop', {method: 'POST'});
+        btn.innerText = "STOPPING..."; await fetch('/api/bot/stop', {method: 'POST'});
         setTimeout(() => location.reload(), 1500);
     }
+
+    // Call loadCreds immediately if logged in
+    loadCreds();
 
     // --- LOGS ---
     const src = new EventSource("/logs");
