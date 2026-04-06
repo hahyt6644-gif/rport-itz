@@ -30,7 +30,7 @@ events_store = {}
 
 def load_config():
     if not os.path.exists('config.json'):
-        conf = {"api_id": "23269382", "api_hash": "b8849fd945ed9225a002fda96591b6ee", "admin_password": "admin", "bot_token": ""}
+        conf = {"api_id": "23269382", "api_hash": "your_hash", "admin_password": "admin", "bot_token": ""}
         with open('config.json', 'w') as f: json.dump(conf, f)
         return conf
     return json.load(open('config.json'))
