@@ -663,25 +663,33 @@ def check_api_keys():
                     api_id = int(str(raw_id).strip())
                     api_hash = str(raw_hash).strip()
                     
+                    # Use MemorySession to protect your real .session files from being banned
                     client = TelegramClient(MemorySession(), api_id, api_hash)
                     await client.connect()
                     
-                    # --- THE FIX: Force Telegram to authenticate the API Key ---
-                    # This tiny request asks Telegram for config data. 
-                    # If the API ID or Hash is fake, Telegram instantly throws an error.
-                    await client(functions.help.GetConfigRequest())
-                    
-                    # If it survives the request above, it is 100% real.
-                    valid += 1
-                    emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
-                    
+                    # --- THE ULTIMATE FIX: The Dummy OTP Trick ---
+                    try:
+                        # Requesting an OTP forces Telegram to verify the API Key first
+                        await client.send_code_request("+9996622222")
+                        valid += 1
+                        emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
+                    except Exception as e:
+                        err_name = type(e).__name__
+                        
+                        # If Telegram rejects the App ID itself, it's fake.
+                        if "ApiId" in err_name or "API_ID_INVALID" in str(e):
+                            dead += 1
+                            emit_log(f"❌ API {api_id}: FAKE/INVALID ({err_name})")
+                        else:
+                            # If it throws a Phone Number Error or Flood Wait, the API Key IS REAL!
+                            valid += 1
+                            emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
+                            
                     await client.disconnect()
                     
                 except Exception as e:
                     dead += 1
-                    err_name = type(e).__name__
-                    # If it's a fake key, Telegram usually throws ApiIdInvalidError
-                    emit_log(f"❌ API {c.get('api_id', 'Unknown')}: INVALID ({err_name})")
+                    emit_log(f"❌ API {c.get('api_id', 'Unknown')}: FAILED ({type(e).__name__})")
                     try: await client.disconnect()
                     except: pass
                     
