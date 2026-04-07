@@ -533,9 +533,30 @@ def save_messages():
 @app.route('/upload_sessions', methods=['POST'])
 def upload_sessions():
     if not session.get('logged_in'): return "", 401
+    count = 0
     for f in request.files.getlist('files'):
-        if f.filename.endswith('.session'): f.save(os.path.join(SESSIONS_DIR, f.filename))
-    return jsonify({"status": "ok"})
+        if f.filename.endswith('.session'): 
+            f.save(os.path.join(SESSIONS_DIR, f.filename))
+            count += 1
+        elif f.filename.endswith('.zip'):
+            zip_path = os.path.join(BASE_DIR, f.filename)
+            f.save(zip_path)
+            try:
+                with ZipFile(zip_path, 'r') as z:
+                    for n in z.namelist():
+                        if n.endswith('.session'):
+                            s_data = z.read(n)
+                            # Save without extracting any sub-folders from the zip
+                            with open(os.path.join(SESSIONS_DIR, os.path.basename(n)), 'wb') as sf:
+                                sf.write(s_data)
+                            count += 1
+            except Exception as e:
+                emit_log(f"⚠️ ZIP Extract Error: {e}")
+            finally:
+                if os.path.exists(zip_path): os.remove(zip_path)
+                
+    emit_log(f"📁 {count} NEW SESSIONS ADDED TO POOL.")
+    return jsonify({"status": "ok", "count": count})
 
 @app.route('/download_sessions')
 def download_sessions():
