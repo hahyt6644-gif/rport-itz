@@ -645,7 +645,6 @@ def check_api_keys():
         except: return
         valid, dead = 0, 0
         
-        # --- THE FIX: Explicitly set the event loop for this background thread ---
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -656,10 +655,9 @@ def check_api_keys():
                 api_hash = str(c.get('api_hash', ''))
                 if not api_id or not api_hash: continue
                 
-                proxy_dict, _ = get_proxy()
-                
-                # We now pass loop=loop directly to the TelegramClient so it doesn't crash
-                client = TelegramClient(MemorySession(), api_id, api_hash, proxy=proxy_dict, loop=loop)
+                # --- THE FIX: Removed proxy_dict from the audit ---
+                # Pinging Telegram directly guarantees no TypeError from proxy mismatches
+                client = TelegramClient(MemorySession(), api_id, api_hash, loop=loop)
                 loop.run_until_complete(client.connect())
                 
                 if client.is_connected():
@@ -672,6 +670,9 @@ def check_api_keys():
                 
         emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
     
+    threading.Thread(target=run_api_check).start()
+    return jsonify({"status": "ok"})
+
     threading.Thread(target=run_api_check).start()
     return jsonify({"status": "ok"})
 
