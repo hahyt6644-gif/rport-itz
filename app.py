@@ -636,42 +636,58 @@ def delete_cred():
     return jsonify({"status": "ok"})
 
 @app.route('/check_api_keys', methods=['POST'])
+@app.route('/check_api_keys', methods=['POST'])
 def check_api_keys():
     if not session.get('logged_in'): return "", 401
+    
     def run_api_check():
-        creds = []
         try:
             with open(CREDS_FILE, 'r') as f: creds = json.load(f)
         except: return
-        valid, dead = 0, 0
         
+        # --- THE FIX: Native Async Function for clean loop handling ---
+        async def audit():
+            valid, dead = 0, 0
+            emit_log("🔍 STARTING API KEY AUDIT...")
+            
+            if not creds:
+                emit_log("⚠️ No API Keys found in pool.")
+                return
+                
+            for c in creds:
+                try:
+                    raw_id = c.get('api_id')
+                    raw_hash = c.get('api_hash')
+                    
+                    # 1. Skip if the entry is blank or corrupted
+                    if not raw_id or not raw_hash or str(raw_id).strip() == "":
+                        continue
+                        
+                    # 2. Safely convert ID to integer
+                    api_id = int(str(raw_id).strip())
+                    api_hash = str(raw_hash).strip()
+                    
+                    client = TelegramClient(MemorySession(), api_id, api_hash)
+                    await client.connect()
+                    
+                    if client.is_connected():
+                        valid += 1
+                        emit_log(f"🔑 API {api_id}: ACTIVE & VALID")
+                    
+                    await client.disconnect()
+                    
+                except Exception as e:
+                    dead += 1
+                    err_name = type(e).__name__
+                    emit_log(f"❌ API {c.get('api_id', 'Unknown')}: DEAD ({err_name})")
+                    
+            emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
+
+        # 3. Execute the entire audit properly in one loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
-        emit_log("🔍 STARTING API KEY AUDIT...")
-        for c in creds:
-            try:
-                api_id = int(c.get('api_id', 0))
-                api_hash = str(c.get('api_hash', ''))
-                if not api_id or not api_hash: continue
-                
-                # --- THE FIX: Removed proxy_dict from the audit ---
-                # Pinging Telegram directly guarantees no TypeError from proxy mismatches
-                client = TelegramClient(MemorySession(), api_id, api_hash, loop=loop)
-                loop.run_until_complete(client.connect())
-                
-                if client.is_connected():
-                    valid += 1
-                    emit_log(f"🔑 API {api_id}: ACTIVE & VALID")
-                loop.run_until_complete(client.disconnect())
-            except Exception as e:
-                dead += 1
-                emit_log(f"❌ API {c.get('api_id')}: DEAD ({type(e).__name__})")
-                
-        emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
-    
-    threading.Thread(target=run_api_check).start()
-    return jsonify({"status": "ok"})
+        loop.run_until_complete(audit())
+        loop.close()
 
     threading.Thread(target=run_api_check).start()
     return jsonify({"status": "ok"})
