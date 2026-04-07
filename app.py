@@ -644,17 +644,22 @@ def check_api_keys():
             with open(CREDS_FILE, 'r') as f: creds = json.load(f)
         except: return
         valid, dead = 0, 0
+        
+        # --- THE FIX: Explicitly set the event loop for this background thread ---
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         emit_log("🔍 STARTING API KEY AUDIT...")
         for c in creds:
             try:
-                # FIX: Telethon needs API ID to be an INTEGER!
                 api_id = int(c.get('api_id', 0))
                 api_hash = str(c.get('api_hash', ''))
                 if not api_id or not api_hash: continue
                 
                 proxy_dict, _ = get_proxy()
-                client = TelegramClient(MemorySession(), api_id, api_hash, proxy=proxy_dict)
+                
+                # We now pass loop=loop directly to the TelegramClient so it doesn't crash
+                client = TelegramClient(MemorySession(), api_id, api_hash, proxy=proxy_dict, loop=loop)
                 loop.run_until_complete(client.connect())
                 
                 if client.is_connected():
