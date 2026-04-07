@@ -636,7 +636,6 @@ def delete_cred():
     return jsonify({"status": "ok"})
 
 @app.route('/check_api_keys', methods=['POST'])
-@app.route('/check_api_keys', methods=['POST'])
 def check_api_keys():
     if not session.get('logged_in'): return "", 401
     
@@ -645,10 +644,9 @@ def check_api_keys():
             with open(CREDS_FILE, 'r') as f: creds = json.load(f)
         except: return
         
-        # --- THE FIX: Native Async Function for clean loop handling ---
         async def audit():
             valid, dead = 0, 0
-            emit_log("🔍 STARTING API KEY AUDIT...")
+            emit_log("🔍 STARTING TRUE API KEY AUDIT...")
             
             if not creds:
                 emit_log("⚠️ No API Keys found in pool.")
@@ -659,31 +657,36 @@ def check_api_keys():
                     raw_id = c.get('api_id')
                     raw_hash = c.get('api_hash')
                     
-                    # 1. Skip if the entry is blank or corrupted
                     if not raw_id or not raw_hash or str(raw_id).strip() == "":
                         continue
                         
-                    # 2. Safely convert ID to integer
                     api_id = int(str(raw_id).strip())
                     api_hash = str(raw_hash).strip()
                     
                     client = TelegramClient(MemorySession(), api_id, api_hash)
                     await client.connect()
                     
-                    if client.is_connected():
-                        valid += 1
-                        emit_log(f"🔑 API {api_id}: ACTIVE & VALID")
+                    # --- THE FIX: Force Telegram to authenticate the API Key ---
+                    # This tiny request asks Telegram for config data. 
+                    # If the API ID or Hash is fake, Telegram instantly throws an error.
+                    await client(functions.help.GetConfigRequest())
+                    
+                    # If it survives the request above, it is 100% real.
+                    valid += 1
+                    emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
                     
                     await client.disconnect()
                     
                 except Exception as e:
                     dead += 1
                     err_name = type(e).__name__
-                    emit_log(f"❌ API {c.get('api_id', 'Unknown')}: DEAD ({err_name})")
+                    # If it's a fake key, Telegram usually throws ApiIdInvalidError
+                    emit_log(f"❌ API {c.get('api_id', 'Unknown')}: INVALID ({err_name})")
+                    try: await client.disconnect()
+                    except: pass
                     
             emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
 
-        # 3. Execute the entire audit properly in one loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(audit())
@@ -691,6 +694,7 @@ def check_api_keys():
 
     threading.Thread(target=run_api_check).start()
     return jsonify({"status": "ok"})
+
 
 @app.route('/save_settings', methods=['POST'])
 def save_settings():
