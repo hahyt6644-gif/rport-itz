@@ -258,10 +258,11 @@ async def execute_task(data):
                         except TypeError:
                             res = await client(functions.messages.ReportRequest(peer=ent, id=ids, option=b'', message=custom_msg))
                             if hasattr(res, 'options') and res.options: await client(functions.messages.ReportRequest(peer=ent, id=ids, option=res.options[0].option, message=custom_msg))
-                        emit_log(f"✅ {basename}: {len(ids)} POSTS REPORTED.")
+                        emit_log(f"✅ {basename}: {len(ids)} POSTS REPORTED. [Msg: {custom_msg}]")
+
                 
                 await client(functions.account.ReportPeerRequest(peer=ent, reason=reason, message=custom_msg))
-                emit_log(f"✅ {basename}: PEER REPORTED (Msg: {custom_msg[:10]}...)")
+                emit_log(f"✅ {basename}: PEER REPORTED. [Msg: {custom_msg}]")
 
                 if data.get('leave_after'):
                     delay = int(data.get('leave_delay', 300))
