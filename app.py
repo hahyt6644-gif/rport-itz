@@ -316,11 +316,7 @@ async def execute_task(data):
                     emit_log(f"✅ {basename}: LEFT.")
 
 
-            elif action == 'leave':
-                if "t.me/+" not in target_input:
-                    await client(functions.channels.LeaveChannelRequest(target_input.replace('https://t.me/','').replace('@','')))
-                    emit_log(f"✅ {basename}: LEFT.")
-
+            
         except Exception as e:
             if str(e) != "STOPPED": emit_log(f"⚠️ {basename}: {str(e)[:30]}")
         finally:
