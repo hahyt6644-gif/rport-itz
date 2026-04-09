@@ -269,12 +269,12 @@ async def execute_task(data):
                     asyncio.create_task(delayed_leave(s_path, api_id, api_hash, target_input, delay, (dev_model, sys_ver, app_ver)))
                     emit_log(f"🕒 {basename}: Queued to leave in {delay}s.")
 
-            elif action == 'message':
+                        elif action == 'message':
                 peer = int(target_input) if target_input.isdigit() else target_input
                 await client.send_message(peer, data.get('message_text', ''))
                 emit_log(f"✅ {basename}: MSG SENT.")
 
-                        elif action == 'join':
+            elif action == 'join':
                 is_private = "t.me/+" in target_input or "joinchat" in target_input
                 
                 if is_private:
@@ -309,6 +309,11 @@ async def execute_task(data):
                             raise e
                             
                 emit_log(f"✅ {basename}: JOINED.")
+
+            elif action == 'leave':
+                if "t.me/+" not in target_input:
+                    await client(functions.channels.LeaveChannelRequest(target_input.replace('https://t.me/','').replace('@','')))
+                    emit_log(f"✅ {basename}: LEFT.")
 
 
             elif action == 'leave':
