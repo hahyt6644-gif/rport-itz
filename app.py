@@ -274,10 +274,42 @@ async def execute_task(data):
                 await client.send_message(peer, data.get('message_text', ''))
                 emit_log(f"✅ {basename}: MSG SENT.")
 
-            elif action == 'join':
-                if "t.me/+" in target_input: await client(functions.messages.ImportChatInviteRequest(target_input.split('+')[-1]))
-                else: await client(functions.channels.JoinChannelRequest(target_input.replace('https://t.me/','').replace('@','')))
+                        elif action == 'join':
+                is_private = "t.me/+" in target_input or "joinchat" in target_input
+                
+                if is_private:
+                    # Handle private invite links
+                    hash_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
+                    await client(functions.messages.ImportChatInviteRequest(hash_val))
+                else:
+                    # Handle public usernames/links
+                    clean_target = target_input.replace('https://t.me/','').replace('@','').split('/')[0].split('?')[0]
+                    
+                    try:
+                        # 1. Resolve the entity first (Official app behavior)
+                        ent = await client.get_entity(clean_target)
+                        
+                        # 2. Mimic Human: Fetch recent chat history to "view" the channel before joining
+                        await client(functions.messages.GetHistoryRequest(
+                            peer=ent, offset_id=0, offset_date=None, 
+                            add_offset=0, limit=2, max_id=0, min_id=0, hash=0
+                        ))
+                        
+                        # 3. Human reading delay
+                        await asyncio.sleep(random.uniform(1.5, 3.5))
+                        
+                        # 4. Execute the join
+                        await client(functions.channels.JoinChannelRequest(ent))
+                        
+                    except Exception as e:
+                        # Fallback for strict cache rules
+                        if "ChannelPrivateError" in type(e).__name__ or "priva" in str(e).lower():
+                            await client(functions.channels.JoinChannelRequest(clean_target))
+                        else:
+                            raise e
+                            
                 emit_log(f"✅ {basename}: JOINED.")
+
 
             elif action == 'leave':
                 if "t.me/+" not in target_input:
