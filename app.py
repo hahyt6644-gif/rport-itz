@@ -234,6 +234,123 @@ async def execute_task(data):
 
                 if not ent:
                     try:
+                        if is_private:async def execute_task(data):
+    all_sessions = glob.glob(os.path.join(SESSIONS_DIR, '*.session'))
+    acc_limit = int(data.get('acc_limit', len(all_sessions)))
+    sessions = all_sessions[:acc_limit]
+    
+    action = data.get('action')
+    min_d = int(data.get('min_d', 3))
+    max_d = int(data.get('max_d', 8))
+    bot_w = int(data.get('bot_w', 60))
+    
+    STOP_SIGNAL.clear()
+    emit_log(f"🚀 ITZ-DEV ENGINE: {action.upper()} ({len(sessions)} ACCS)")
+
+    for i, s_path in enumerate(sessions):
+        if STOP_SIGNAL.is_set():
+            emit_log("🛑 TASK KILLED BY USER.")
+            break
+            
+        basename = os.path.basename(s_path)
+        api_id, api_hash = get_balanced_creds(i)
+        
+        client = None
+        connected = False
+        skip_sleep = False # Dev flag: blast past dead accounts without waiting
+        dev_model, sys_ver, app_ver = get_random_device()
+
+        for attempt in range(2):
+            if STOP_SIGNAL.is_set(): break
+            proxy_data, proxy_raw = get_proxy()
+                
+            # Aggressive connection limits to prevent internal Telethon hangs
+            client = TelegramClient(
+                s_path.replace('.session',''), api_id, api_hash, proxy=proxy_data,
+                device_model=dev_model, system_version=sys_ver, app_version=app_ver,
+                lang_code="en", system_lang_code="en", request_retries=1, connection_retries=1, timeout=5
+            )
+            
+            try:
+                # Force kill the socket if the proxy is a zombie blackhole
+                await asyncio.wait_for(client.connect(), timeout=10.0)
+                connected = True
+                break
+            except Exception as e:
+                err_type = type(e).__name__
+                err_type = "Timeout" if "Timeout" in err_type else err_type
+                emit_log(f"🔄 {basename}: PROXY ERR ({err_type})")
+                await client.disconnect()
+                await asyncio.sleep(1)
+
+        if not connected or STOP_SIGNAL.is_set():
+            if client: await client.disconnect()
+            continue
+
+        try:
+            # Check auth state. If dead, move it, and skip the delay
+            if not await client.is_user_authorized():
+                emit_log(f"❌ {basename}: SESSION DEAD. MOVED.")
+                await client.disconnect()
+                
+                # Nuke existing file in expired dir to prevent shutil lock crashes
+                dest = os.path.join(EXPIRED_DIR, basename)
+                if os.path.exists(dest): os.remove(dest)
+                shutil.move(s_path, dest)
+                
+                skip_sleep = True 
+                continue
+
+            emit_log(f"📱 {basename} SPOOFING DEVICE: {dev_model}")
+            target_input = data.get('target', '').strip()
+
+            if action == 'health':
+                await client.get_me()
+                emit_log(f"✅ {basename}: ONLINE (API:{api_id})")
+
+            elif action == 'refer':
+                bot_u = target_input.split('t.me/')[-1].split('?')[0]
+                param = target_input.split('start=')[-1] if 'start=' in target_input else ""
+                ent = await client.get_entity(bot_u)
+                await client(functions.messages.StartBotRequest(bot=ent, peer=ent, start_param=param))
+                emit_log(f"🔗 {basename}: REF SUCCESS.")
+
+            elif action == 'report':
+                reason_code = data.get('reason', '9')
+                reason_map = {'1': types.InputReportReasonSpam(), '2': types.InputReportReasonViolence(), '3': types.InputReportReasonPornography(), '4': types.InputReportReasonChildAbuse(), '5': types.InputReportReasonCopyright(), '6': types.InputReportReasonIllegalDrugs(), '7': types.InputReportReasonPersonalDetails(), '8': types.InputReportReasonFake(), '9': types.InputReportReasonOther()}
+                reason = reason_map.get(reason_code, types.InputReportReasonOther())
+                
+                custom_msg = "Violations"
+                if data.get('use_custom_msg', False):
+                    file_name = REASON_FILES.get(reason_code, 'other.txt')
+                    try:
+                        with open(os.path.join(MESSAGES_DIR, file_name), 'r', encoding='utf-8') as mf:
+                            lines = [l.strip() for l in mf if l.strip()]
+                            if lines: custom_msg = random.choice(lines)
+                    except: pass
+                
+                ent = None
+                clean_target = target_input.split('t.me/')[-1].split('/')[0].replace('@', '').replace('+', '').split('?')[0]
+                is_private = "t.me/+" in target_input or "joinchat" in target_input
+                
+                if data.get('join_first') or is_private:
+                    try:
+                        if is_private:
+                            h_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
+                            res = await client(functions.messages.ImportChatInviteRequest(h_val))
+                            ent = res.chats[0]
+                            emit_log(f"📥 {basename}: SUCCESSFULLY JOINED PRIVATE TARGET.")
+                        else:
+                            await client(functions.channels.JoinChannelRequest(clean_target))
+                            ent = await client.get_entity(clean_target)
+                            emit_log(f"📥 {basename}: SUCCESSFULLY JOINED PUBLIC TARGET.")
+                        await asyncio.sleep(2)
+                    except Exception as e:
+                        if 'UserAlreadyParticipant' in type(e).__name__: emit_log(f"📥 {basename}: ALREADY IN CHAT.")
+                        else: emit_log(f"⚠️ {basename}: JOIN FAILED ({type(e).__name__})")
+
+                if not ent:
+                    try:
                         if is_private:
                             h_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
                             invite = await client(functions.messages.CheckChatInviteRequest(h_val))
@@ -277,31 +394,19 @@ async def execute_task(data):
                 is_private = "t.me/+" in target_input or "joinchat" in target_input
                 
                 if is_private:
-                    # Handle private invite links
                     hash_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
                     await client(functions.messages.ImportChatInviteRequest(hash_val))
                 else:
-                    # Handle public usernames/links
                     clean_target = target_input.replace('https://t.me/','').replace('@','').split('/')[0].split('?')[0]
-                    
                     try:
-                        # 1. Resolve the entity first (Official app behavior)
                         ent = await client.get_entity(clean_target)
-                        
-                        # 2. Mimic Human: Fetch recent chat history to "view" the channel before joining
                         await client(functions.messages.GetHistoryRequest(
                             peer=ent, offset_id=0, offset_date=None, 
                             add_offset=0, limit=2, max_id=0, min_id=0, hash=0
                         ))
-                        
-                        # 3. Human reading delay
                         await asyncio.sleep(random.uniform(1.5, 3.5))
-                        
-                        # 4. Execute the join
                         await client(functions.channels.JoinChannelRequest(ent))
-                        
                     except Exception as e:
-                        # Fallback for strict cache rules
                         if "ChannelPrivateError" in type(e).__name__ or "priva" in str(e).lower():
                             await client(functions.channels.JoinChannelRequest(clean_target))
                         else:
@@ -318,9 +423,12 @@ async def execute_task(data):
             if str(e) != "STOPPED": emit_log(f"⚠️ {basename}: {str(e)[:30]}")
         finally:
             await client.disconnect()
-            if not STOP_SIGNAL.is_set(): await asyncio.sleep(random.uniform(min_d, max_d))
+            # Bypasses the sleep loop entirely if the account was flagged as dead
+            if not STOP_SIGNAL.is_set() and not skip_sleep: 
+                await asyncio.sleep(random.uniform(min_d, max_d))
             
     emit_log("🏁 SYSTEM IDLE.")
+
 
 def thread_run(data):
     global IS_RUNNING
