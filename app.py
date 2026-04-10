@@ -11,7 +11,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# --- ABSOLUTE PATHS FIX FOR RENDER ---
+# --- PATH---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
 CREDS_FILE = os.path.join(BASE_DIR, 'credentials.json')
