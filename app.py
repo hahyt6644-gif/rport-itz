@@ -114,13 +114,17 @@ async def delayed_leave(s_path, api_id, api_hash, target, delay_seconds, dev_met
     proxy_data, _ = get_proxy() 
     client = TelegramClient(s_path.replace('.session','_cleanup'), api_id, api_hash, proxy=proxy_data, device_model=dev_meta[0])
     try:
-        await client.connect()
-        if await client.is_user_authorized():
+        await asyncio.wait_for(client.connect(), timeout=10.0)
+        is_auth = await asyncio.wait_for(client.is_user_authorized(), timeout=5.0)
+        if is_auth:
             clean_target = target.replace('https://t.me/','').replace('@','').split('/')[-1].split('?')[0]
             await client(functions.channels.LeaveChannelRequest(clean_target))
             emit_log(f"🧹 {basename}: Safety auto-leave successful.")
-    except Exception as e: emit_log(f"⚠️ {basename}: Auto-leave failed.")
-    finally: await client.disconnect()
+    except:
+        emit_log(f"⚠️ {basename}: Auto-leave failed.")
+    finally:
+        try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
+        except: pass
 
 async def execute_task(data):
     all_sessions = glob.glob(os.path.join(SESSIONS_DIR, '*.session'))
@@ -166,20 +170,30 @@ async def execute_task(data):
                 err_type = type(e).__name__
                 err_type = "Timeout" if "Timeout" in err_type else err_type
                 emit_log(f"🔄 {basename}: PROXY ERR ({err_type})")
-                await client.disconnect()
+                try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
+                except: pass
                 await asyncio.sleep(1)
 
         if not connected or STOP_SIGNAL.is_set():
-            if client: await client.disconnect()
+            if client: 
+                try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
+                except: pass
             continue
 
         try:
-            if not await client.is_user_authorized():
+            try:
+                is_auth = await asyncio.wait_for(client.is_user_authorized(), timeout=10.0)
+            except Exception:
+                emit_log(f"⚠️ {basename}: AUTH CHECK TIMEOUT. SKIPPING.")
+                skip_sleep = True
+                continue
+
+            if not is_auth:
                 emit_log(f"❌ {basename}: SESSION DEAD. MOVED.")
-                await client.disconnect()
                 dest = os.path.join(EXPIRED_DIR, basename)
                 if os.path.exists(dest): os.remove(dest)
-                shutil.move(s_path, dest)
+                try: shutil.move(s_path, dest)
+                except: pass
                 skip_sleep = True 
                 continue
 
@@ -302,7 +316,9 @@ async def execute_task(data):
         except Exception as e:
             if str(e) != "STOPPED": emit_log(f"⚠️ {basename}: {str(e)[:30]}")
         finally:
-            await client.disconnect()
+            if client:
+                try: await asyncio.wait_for(client.disconnect(), timeout=5.0)
+                except: pass
             if not STOP_SIGNAL.is_set() and not skip_sleep: 
                 await asyncio.sleep(random.uniform(min_d, max_d))
             
@@ -361,9 +377,9 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cb_key = f"skip_session:{user_id}:{idx}"
         try:
             await update.message.reply_text(f"📁 Session [{idx}]: {sname}\n🔌 Connecting...")
-            try: await client.connect()
+            try: await asyncio.wait_for(client.connect(), timeout=10.0)
             except: await update.message.reply_text("❌ Connect FAIL. Skipping..."); continue
-            try: is_auth = await client.is_user_authorized()
+            try: is_auth = await asyncio.wait_for(client.is_user_authorized(), timeout=5.0)
             except: is_auth = False
             if not is_auth:
                 await update.message.reply_text("🚫 Session Not Authorized / Expired. Skipping...")
@@ -403,7 +419,7 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e: pass
         finally:
             events_store.get(user_id, {}).pop(cb_key, None)
-            try: await client.disconnect()
+            try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
             except: pass
     await update.message.reply_text("✅ Saari sessions process ho gayi.")
 
@@ -642,9 +658,9 @@ def check_api_keys():
                     api_id = int(str(raw_id).strip())
                     api_hash = str(raw_hash).strip()
                     client = TelegramClient(MemorySession(), api_id, api_hash)
-                    await client.connect()
+                    await asyncio.wait_for(client.connect(), timeout=10.0)
                     try:
-                        await client.send_code_request("+9996622222")
+                        await asyncio.wait_for(client.send_code_request("+9996622222"), timeout=5.0)
                         valid += 1
                         emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
                     except Exception as e:
@@ -655,11 +671,12 @@ def check_api_keys():
                         else:
                             valid += 1
                             emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
-                    await client.disconnect()
+                    try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
+                    except: pass
                 except Exception as e:
                     dead += 1
                     emit_log(f"❌ API {c.get('api_id', 'Unknown')}: FAILED ({type(e).__name__})")
-                    try: await client.disconnect()
+                    try: await asyncio.wait_for(client.disconnect(), timeout=3.0)
                     except: pass
             emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
         loop = asyncio.new_event_loop()
