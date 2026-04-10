@@ -6,12 +6,9 @@ from telethon import TelegramClient, functions, types, events
 from telethon.sessions import MemorySession
 from telethon.errors import AuthKeyUnregisteredError, UserDeactivatedBanError, SessionExpiredError, SessionRevokedError
 from datetime import datetime
-
-# Telegram Bot Imports
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# --- PATH---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
 CREDS_FILE = os.path.join(BASE_DIR, 'credentials.json')
@@ -24,7 +21,6 @@ os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(EXPIRED_DIR, exist_ok=True)
 os.makedirs(MESSAGES_DIR, exist_ok=True)
 
-# Generate category message files automatically
 REASON_FILES = {
     '1': 'spam.txt', '2': 'violence.txt', '3': 'pornography.txt', 
     '4': 'child_abuse.txt', '5': 'copyright.txt', '6': 'drugs.txt', 
@@ -38,13 +34,11 @@ for f_name in REASON_FILES.values():
 app = Flask(__name__)
 app.secret_key = 'itz_dev_super_secret_key_2026'
 
-# --- GLOBAL VARIABLES ---
 STOP_SIGNAL = threading.Event()
 LOG_HISTORY = []
 IS_RUNNING = False
 PROXY_STATUS = {"active": 0, "dead": 0, "last_check": "Never"}
 
-# --- OTP BOT GLOBALS ---
 BOT_APP = None
 BOT_THREAD = None
 BOT_LOOP = None
@@ -151,123 +145,13 @@ async def execute_task(data):
         
         client = None
         connected = False
+        skip_sleep = False 
         dev_model, sys_ver, app_ver = get_random_device()
 
         for attempt in range(2):
             if STOP_SIGNAL.is_set(): break
             proxy_data, proxy_raw = get_proxy()
                 
-            client = TelegramClient(
-                s_path.replace('.session',''), api_id, api_hash, proxy=proxy_data,
-                device_model=dev_model, system_version=sys_ver, app_version=app_ver,
-                lang_code="en", system_lang_code="en", request_retries=3, connection_retries=3, timeout=15
-            )
-            
-            try:
-                await client.connect()
-                connected = True
-                break
-            except Exception as e:
-                emit_log(f"🔄 {basename}: PROXY ERR ({type(e).__name__})")
-                await client.disconnect()
-                await asyncio.sleep(2)
-
-        if not connected or STOP_SIGNAL.is_set():
-            if client: await client.disconnect()
-            continue
-
-        try:
-            if not await client.is_user_authorized():
-                emit_log(f"❌ {basename}: SESSION DEAD. MOVED.")
-                await client.disconnect()
-                shutil.move(s_path, os.path.join(EXPIRED_DIR, basename))
-                continue
-
-            emit_log(f"📱 {basename} SPOOFING DEVICE: {dev_model}")
-            target_input = data.get('target', '').strip()
-
-            if action == 'health':
-                await client.get_me()
-                emit_log(f"✅ {basename}: ONLINE (API:{api_id})")
-
-            elif action == 'refer':
-                bot_u = target_input.split('t.me/')[-1].split('?')[0]
-                param = target_input.split('start=')[-1] if 'start=' in target_input else ""
-                ent = await client.get_entity(bot_u)
-                await client(functions.messages.StartBotRequest(bot=ent, peer=ent, start_param=param))
-                emit_log(f"🔗 {basename}: REF SUCCESS.")
-
-            elif action == 'report':
-                reason_code = data.get('reason', '9')
-                reason_map = {'1': types.InputReportReasonSpam(), '2': types.InputReportReasonViolence(), '3': types.InputReportReasonPornography(), '4': types.InputReportReasonChildAbuse(), '5': types.InputReportReasonCopyright(), '6': types.InputReportReasonIllegalDrugs(), '7': types.InputReportReasonPersonalDetails(), '8': types.InputReportReasonFake(), '9': types.InputReportReasonOther()}
-                reason = reason_map.get(reason_code, types.InputReportReasonOther())
-                
-                # --- CATEGORY WISE MESSAGE SYSTEM ---
-                custom_msg = "Violations"
-                if data.get('use_custom_msg', False):
-                    file_name = REASON_FILES.get(reason_code, 'other.txt')
-                    try:
-                        with open(os.path.join(MESSAGES_DIR, file_name), 'r', encoding='utf-8') as mf:
-                            lines = [l.strip() for l in mf if l.strip()]
-                            if lines: custom_msg = random.choice(lines)
-                    except: pass
-                
-                ent = None
-                clean_target = target_input.split('t.me/')[-1].split('/')[0].replace('@', '').replace('+', '').split('?')[0]
-                is_private = "t.me/+" in target_input or "joinchat" in target_input
-                
-                if data.get('join_first') or is_private:
-                    try:
-                        if is_private:
-                            h_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
-                            res = await client(functions.messages.ImportChatInviteRequest(h_val))
-                            ent = res.chats[0]
-                            emit_log(f"📥 {basename}: SUCCESSFULLY JOINED PRIVATE TARGET.")
-                        else:
-                            await client(functions.channels.JoinChannelRequest(clean_target))
-                            ent = await client.get_entity(clean_target)
-                            emit_log(f"📥 {basename}: SUCCESSFULLY JOINED PUBLIC TARGET.")
-                        await asyncio.sleep(2)
-                    except Exception as e:
-                        if 'UserAlreadyParticipant' in type(e).__name__: emit_log(f"📥 {basename}: ALREADY IN CHAT.")
-                        else: emit_log(f"⚠️ {basename}: JOIN FAILED ({type(e).__name__})")
-
-                if not ent:
-    try:
-        if is_private:
-            async def execute_task(data):
-                all_sessions = glob.glob(os.path.join(SESSIONS_DIR, '*.session'))
-                acc_limit = int(data.get('acc_limit', len(all_sessions)))
-                sessions = all_sessions[:acc_limit]
-        
-
-    
-    action = data.get('action')
-    min_d = int(data.get('min_d', 3))
-    max_d = int(data.get('max_d', 8))
-    bot_w = int(data.get('bot_w', 60))
-    
-    STOP_SIGNAL.clear()
-    emit_log(f"🚀 ITZ-DEV ENGINE: {action.upper()} ({len(sessions)} ACCS)")
-
-    for i, s_path in enumerate(sessions):
-        if STOP_SIGNAL.is_set():
-            emit_log("🛑 TASK KILLED BY USER.")
-            break
-            
-        basename = os.path.basename(s_path)
-        api_id, api_hash = get_balanced_creds(i)
-        
-        client = None
-        connected = False
-        skip_sleep = False # Dev flag: blast past dead accounts without waiting
-        dev_model, sys_ver, app_ver = get_random_device()
-
-        for attempt in range(2):
-            if STOP_SIGNAL.is_set(): break
-            proxy_data, proxy_raw = get_proxy()
-                
-            # Aggressive connection limits to prevent internal Telethon hangs
             client = TelegramClient(
                 s_path.replace('.session',''), api_id, api_hash, proxy=proxy_data,
                 device_model=dev_model, system_version=sys_ver, app_version=app_ver,
@@ -275,7 +159,6 @@ async def execute_task(data):
             )
             
             try:
-                # Force kill the socket if the proxy is a zombie blackhole
                 await asyncio.wait_for(client.connect(), timeout=10.0)
                 connected = True
                 break
@@ -291,16 +174,12 @@ async def execute_task(data):
             continue
 
         try:
-            # Check auth state. If dead, move it, and skip the delay
             if not await client.is_user_authorized():
                 emit_log(f"❌ {basename}: SESSION DEAD. MOVED.")
                 await client.disconnect()
-                
-                # Nuke existing file in expired dir to prevent shutil lock crashes
                 dest = os.path.join(EXPIRED_DIR, basename)
                 if os.path.exists(dest): os.remove(dest)
                 shutil.move(s_path, dest)
-                
                 skip_sleep = True 
                 continue
 
@@ -395,7 +274,6 @@ async def execute_task(data):
 
             elif action == 'join':
                 is_private = "t.me/+" in target_input or "joinchat" in target_input
-                
                 if is_private:
                     hash_val = target_input.split('+')[-1].split('?')[0] if '+' in target_input else target_input.split('joinchat/')[-1].split('/')[0].split('?')[0]
                     await client(functions.messages.ImportChatInviteRequest(hash_val))
@@ -414,7 +292,6 @@ async def execute_task(data):
                             await client(functions.channels.JoinChannelRequest(clean_target))
                         else:
                             raise e
-                            
                 emit_log(f"✅ {basename}: JOINED.")
 
             elif action == 'leave':
@@ -426,12 +303,10 @@ async def execute_task(data):
             if str(e) != "STOPPED": emit_log(f"⚠️ {basename}: {str(e)[:30]}")
         finally:
             await client.disconnect()
-            # Bypasses the sleep loop entirely if the account was flagged as dead
             if not STOP_SIGNAL.is_set() and not skip_sleep: 
                 await asyncio.sleep(random.uniform(min_d, max_d))
             
     emit_log("🏁 SYSTEM IDLE.")
-
 
 def thread_run(data):
     global IS_RUNNING
@@ -440,9 +315,6 @@ def thread_run(data):
     try: loop.run_until_complete(execute_task(data))
     finally: IS_RUNNING = False
 
-# ==========================================
-# OTP BOT LOGIC (WEBHOOK)
-# ==========================================
 def ensure_bucket(user_id: int):
     if user_id not in events_store: events_store[user_id] = {}
 
@@ -464,14 +336,12 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     ensure_bucket(user_id)
     if not update.message.document: return
-
     file = update.message.document
     fname = file.file_name.lower()
     f = await context.bot.get_file(file.file_id)
     local_path = os.path.join(BASE_DIR, f"{user_id}_{fname}")
     await f.download_to_drive(custom_path=local_path)
     await update.message.reply_text("♻️ Processing...\n🙏 Please wait.")
-
     sessions = []
     if fname.endswith(".zip"):
         try:
@@ -483,29 +353,22 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if n.endswith(".session"): sessions.append(os.path.join(out_dir, n))
         except Exception as e: return await update.message.reply_text(f"❌ ZIP extract error: {e}")
     elif fname.endswith(".session"): sessions = [local_path]
-    
     if not sessions: return await update.message.reply_text("❌ Koi .session file nahi mili.")
-
     api_id, api_hash = get_balanced_creds()
-
     for idx, sfile in enumerate(sessions, start=1):
         sname = os.path.basename(sfile)
         client = TelegramClient(sfile, api_id, api_hash)
         cb_key = f"skip_session:{user_id}:{idx}"
-
         try:
             await update.message.reply_text(f"📁 Session [{idx}]: {sname}\n🔌 Connecting...")
             try: await client.connect()
             except: await update.message.reply_text("❌ Connect FAIL. Skipping..."); continue
-
             try: is_auth = await client.is_user_authorized()
             except: is_auth = False
-            
             if not is_auth:
                 await update.message.reply_text("🚫 Session Not Authorized / Expired. Skipping...")
                 await client.disconnect()
                 continue
-
             try:
                 me = await client.get_me()
                 phone = me.phone or "Unknown"
@@ -514,12 +377,10 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ get_me() FAIL (Banned/Revoked). Skipping...")
                 await client.disconnect()
                 continue
-
             await update.message.reply_text("👂 OTP listener register kar raha hoon...")
             otp_event = asyncio.Event()
             skip_event = asyncio.Event()
             events_store[user_id][cb_key] = {"skip": skip_event, "tasks": [], "answered": False}
-
             @client.on(events.NewMessage(from_users=777000))
             async def otp_listener(event):
                 raw = event.raw_text
@@ -528,28 +389,22 @@ async def bot_receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if m: await context.bot.send_message(chat_id=user_id, text=f"🧩 OTP Code: {m.group(1)}\n📱 Number: +{phone}")
                 otp_event.set()
                 await client.disconnect()
-
             await asyncio.sleep(1)
             keyboard = [[InlineKeyboardButton("Next ➡️", callback_data=cb_key)]]
             info_msg = await update.message.reply_text(f"👤 {first_name} | +{phone}\n⏳ Waiting for OTP...", reply_markup=InlineKeyboardMarkup(keyboard))
-
             t1, t2 = asyncio.create_task(otp_event.wait()), asyncio.create_task(skip_event.wait())
             events_store[user_id][cb_key]["tasks"] = [t1, t2]
-
             done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
             for t in pending: t.cancel()
-
             if skip_event.is_set() and not otp_event.is_set():
                 await context.bot.send_message(chat_id=user_id, text=f"⏭️ [{sname}] Skipped.")
             try: await info_msg.edit_reply_markup(None)
             except: pass
-
         except Exception as e: pass
         finally:
             events_store.get(user_id, {}).pop(cb_key, None)
             try: await client.disconnect()
             except: pass
-
     await update.message.reply_text("✅ Saari sessions process ho gayi.")
 
 async def bot_skip_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -561,7 +416,6 @@ async def bot_skip_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split(":")
         owner_id = int(parts[1]) if len(parts) >= 3 else user.id
         if user.id != owner_id: return
-        
         entry = events_store.get(owner_id, {}).get(data)
         if entry and not entry.get("answered"):
             entry["answered"] = True
@@ -582,10 +436,8 @@ def run_bot_thread(token):
         BOT_APP.add_handler(CommandHandler("cancel", bot_cancel_cmd))
         BOT_APP.add_handler(MessageHandler(filters.Document.ALL, bot_receive_file))
         BOT_APP.add_handler(CallbackQueryHandler(bot_skip_cb))
-        
         BOT_LOOP.run_until_complete(BOT_APP.initialize())
         BOT_LOOP.run_until_complete(BOT_APP.start())
-        
         IS_BOT_RUNNING = True
         emit_log("🤖 OTP BOT INITIALIZED IN WEBHOOK MODE.")
         BOT_LOOP.run_forever()
@@ -602,9 +454,6 @@ async def shutdown_bot():
         IS_BOT_RUNNING = False
         emit_log("🤖 OTP BOT ENGINE STOPPED.")
 
-# ==========================================
-# FLASK ROUTES
-# ==========================================
 @app.route('/')
 def index():
     if not session.get('logged_in'): return render_template('index.html', logged_in=False)
@@ -651,7 +500,6 @@ def clear_logs():
     LOG_HISTORY.clear()
     return jsonify({"status": "ok"})
 
-# --- CATEGORY MESSAGES ROUTES ---
 @app.route('/get_messages', methods=['POST'])
 def get_messages():
     if not session.get('logged_in'): return "", 401
@@ -671,7 +519,6 @@ def save_messages():
         f.write(content)
     return jsonify({"status": "ok"})
 
-# --- SESSIONS & PROXIES ROUTES ---
 @app.route('/upload_sessions', methods=['POST'])
 def upload_sessions():
     if not session.get('logged_in'): return "", 401
@@ -688,7 +535,6 @@ def upload_sessions():
                     for n in z.namelist():
                         if n.endswith('.session'):
                             s_data = z.read(n)
-                            # Save without extracting any sub-folders from the zip
                             with open(os.path.join(SESSIONS_DIR, os.path.basename(n)), 'wb') as sf:
                                 sf.write(s_data)
                             count += 1
@@ -696,7 +542,6 @@ def upload_sessions():
                 emit_log(f"⚠️ ZIP Extract Error: {e}")
             finally:
                 if os.path.exists(zip_path): os.remove(zip_path)
-                
     emit_log(f"📁 {count} NEW SESSIONS ADDED TO POOL.")
     return jsonify({"status": "ok", "count": count})
 
@@ -745,7 +590,6 @@ def check_proxies():
     threading.Thread(target=run_check).start()
     return jsonify({"status": "ok"})
 
-# --- API KEY MANAGEMENT ROUTES ---
 @app.route('/save_creds', methods=['POST'])
 def save_creds():
     if not session.get('logged_in'): return "", 401
@@ -779,71 +623,51 @@ def delete_cred():
 @app.route('/check_api_keys', methods=['POST'])
 def check_api_keys():
     if not session.get('logged_in'): return "", 401
-    
     def run_api_check():
         try:
             with open(CREDS_FILE, 'r') as f: creds = json.load(f)
         except: return
-        
         async def audit():
             valid, dead = 0, 0
             emit_log("🔍 STARTING TRUE API KEY AUDIT...")
-            
             if not creds:
                 emit_log("⚠️ No API Keys found in pool.")
                 return
-                
             for c in creds:
                 try:
                     raw_id = c.get('api_id')
                     raw_hash = c.get('api_hash')
-                    
                     if not raw_id or not raw_hash or str(raw_id).strip() == "":
                         continue
-                        
                     api_id = int(str(raw_id).strip())
                     api_hash = str(raw_hash).strip()
-                    
-                    # Use MemorySession to protect your real .session files from being banned
                     client = TelegramClient(MemorySession(), api_id, api_hash)
                     await client.connect()
-                    
-                    # --- THE ULTIMATE FIX: The Dummy OTP Trick ---
                     try:
-                        # Requesting an OTP forces Telegram to verify the API Key first
                         await client.send_code_request("+9996622222")
                         valid += 1
                         emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
                     except Exception as e:
                         err_name = type(e).__name__
-                        
-                        # If Telegram rejects the App ID itself, it's fake.
                         if "ApiId" in err_name or "API_ID_INVALID" in str(e):
                             dead += 1
                             emit_log(f"❌ API {api_id}: FAKE/INVALID ({err_name})")
                         else:
-                            # If it throws a Phone Number Error or Flood Wait, the API Key IS REAL!
                             valid += 1
                             emit_log(f"🔑 API {api_id}: ACTIVE & VERIFIED")
-                            
                     await client.disconnect()
-                    
                 except Exception as e:
                     dead += 1
                     emit_log(f"❌ API {c.get('api_id', 'Unknown')}: FAILED ({type(e).__name__})")
                     try: await client.disconnect()
                     except: pass
-                    
             emit_log(f"📊 API AUDIT COMPLETE: {valid} OK, {dead} DEAD.")
-
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(audit())
         loop.close()
-
     threading.Thread(target=run_api_check).start()
     return jsonify({"status": "ok"})
-
 
 @app.route('/save_settings', methods=['POST'])
 def save_settings():
@@ -869,19 +693,15 @@ def start_bot():
     global BOT_THREAD
     if not session.get('logged_in'): return "", 401
     if IS_BOT_RUNNING: return jsonify({"status": "already_running"})
-    
     token = load_config().get('bot_token', '')
     if not token: return jsonify({"status": "no_token"})
-    
     BOT_THREAD = threading.Thread(target=run_bot_thread, args=(token,))
     BOT_THREAD.daemon = True
     BOT_THREAD.start()
-
     webhook_url = request.url_root.replace('http://', 'https://') + 'webhook'
     r = requests.get(f"https://api.telegram.org/bot{token}/setWebhook?url={webhook_url}")
     if r.status_code == 200: emit_log(f"🌐 WEBHOOK SET TO: {webhook_url}")
     else: emit_log(f"⚠️ WEBHOOK FAILED: {r.text}")
-
     return jsonify({"status": "ok"})
 
 @app.route('/api/bot/stop', methods=['POST'])
@@ -889,14 +709,11 @@ def stop_bot():
     global IS_BOT_RUNNING
     if not session.get('logged_in'): return "", 401
     token = load_config().get('bot_token', '')
-
     if token:
         requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook")
         emit_log("🗑️ WEBHOOK DELETED FROM TELEGRAM.")
-
     if IS_BOT_RUNNING and BOT_LOOP:
         asyncio.run_coroutine_threadsafe(shutdown_bot(), BOT_LOOP)
-        
     return jsonify({"status": "ok"})
 
 @app.route('/webhook', methods=['POST'])
