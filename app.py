@@ -234,7 +234,8 @@ async def execute_task(data):
 
                 if not ent:
                     try:
-                        if is_private:async def execute_task(data):
+                        if is_private:
+                            async def execute_task(data):
     all_sessions = glob.glob(os.path.join(SESSIONS_DIR, '*.session'))
     acc_limit = int(data.get('acc_limit', len(all_sessions)))
     sessions = all_sessions[:acc_limit]
